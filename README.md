@@ -2,13 +2,85 @@
 
 A Manifest V3 Chrome extension that turns the cluttered, cohort-wide HTML
 schedule on `apps.guc.edu.eg` into a personalized, color-coded 6-day
-(Saturday–Thursday) timetable — with one-click `.ics` calendar export and a
+(Saturday–Thursday) timetable — with one-click PDF export and a
 built-in group-code translator.
 
 **Cost: $0.** No account, no API key, no subscription, no credit card, ever.
 Everything runs as a local script inside your own browser. Your GUC login
 and schedule data never leave your machine — there is no server, no
 analytics, and no network request of any kind built into this extension.
+
+---
+
+## What's new in v2.1.0
+
+- **Your cohort's name, front and center.** The popup now reads the
+  portal's own schedule-type dropdown (the one that says e.g.
+  *"IET & MET 3rd Semester I"*) and shows it as a chip in the header, so
+  you can confirm at a glance that you're looking at the right cohort.
+- **Force Re-scan actually re-scans.** Tabs that were opened *before* the
+  extension last reloaded never received the content script, so re-scan
+  used to fail with a dead message channel. The popup now injects the
+  parser into the tab on demand and retries once — no more manual tab
+  reloads.
+- **Export is now a PDF.** One click downloads a clean A4-landscape PDF
+  of exactly the grid you're looking at — cohort name as the title, your
+  selected group/German level in the subtitle, color-coded slot cards
+  with rooms. The old `.ics` calendar export (and its import
+  instructions) are gone; the PDF needs no importing anywhere.
+- **Tests cover the new surface.** The offline suite now also pins down
+  cohort-name extraction (including the whitespace-collapsing fallback
+  for the portal's embedded-newline option labels) and the byte-level
+  structure of the generated PDF (header, DCTDecode image, MediaBox,
+  xref offset).
+
+---
+
+## What's new in v2.0.2
+
+- **Lectures no longer vanish when you pick a tutorial group.** v2.0.1
+  stamped every cohort lecture with its row's faculty tag — which is right
+  for cross-listed lectures but wrong for *service* courses (math, physics,
+  humanities…) that the portal renders inside one faculty's rows for
+  everyone. A service lecture filed in a row tagged for another faculty was
+  silently filtered out. Now the row tag decides the audience only when the
+  course prefix is a real faculty code (`ELCT 708` under a MET row → MET);
+  any other prefix (`MATH301`, `PHYS 201`, `PHYSt 301`) keeps the lecture
+  visible to every group.
+- **German no longer disappears when both dropdowns are set.** Your German
+  group number is independent of your tutorial group number — so with both
+  selected, your German row usually matched neither rule and silently
+  vanished. Now: when the tutorial selection happens to match a room of the
+  selected German level, the view keeps narrowing to that one room;
+  otherwise the level widens back to all of its rooms so the class is
+  always shown.
+- **Old caches discard themselves.** Slots parsed by an older version
+  survive extension reloads in `chrome.storage.local` and used to mask
+  parser fixes until a manual re-scan. The cache is now stamped with a
+  parser version and dropped on mismatch, so updating the extension is
+  enough — your next scan rebuilds the schedule with the fixed parser.
+
+---
+
+## What's new in v2.0.1
+
+- **German is German again.** The portal renders course codes with a space
+  (`DE 303`, same style as `ELCT 708`) — the raw string comparison against
+  the level list never matched, so German rows never registered in the
+  German dropdown and were only reachable through their tutorial tag (and
+  styled like tutorials). Course-code comparisons now go through one shared
+  normalizer (`normalizeCourseCode`), and a German row renders with the
+  German badge even when its primary token is its tutorial tag.
+- **Cross-listed lectures no longer vanish.** A cohort lecture's target
+  major is now read from the row's own faculty tag (`3 MET III 3G`) when
+  present, falling back to the course-prefix guess only for tagless cells.
+  Previously a lecture like `ELCT 708` (Electric Machines) rendered for
+  another cohort was hidden from exactly the students attending it,
+  because its `ELCT` prefix didn't match their major.
+- **Mixed-case course codes parse.** Portal rows like `PHYSt 301 Lecture`
+  used to fail the course-code regex entirely and degrade to `GENERAL` —
+  the regex now tolerates stray lowercase letters and the code is
+  uppercased downstream.
 
 ---
 
@@ -53,10 +125,11 @@ guc-timetable-matrix/
 ├── icons/                   # Toolbar icons (16/48/128px)
 ├── popup/
 │   ├── popup.html           # Popup UI shell
-│   ├── popup.js               # State, rendering, filtering, translator, .ics export
-│   └── popup.css               # Dark theme + print stylesheet
+│   ├── popup.js               # State, rendering, filtering, translator, PDF export
+│   └── popup.css               # Dark theme
 ├── tests/
 │   ├── test-harness.html    # Browser test page (button → assertions + raw JSON)
+│   ├── ui-preview.html      # Dev-only visual preview of the popup UI (loaded / stacked / empty states)
 │   ├── node-runner.js       # Headless runner for the exact same suite (`npm test`)
 │   ├── fixtures.js          # Fixture markup: synthetic machinery shapes + REAL-PORTAL transcripts
 │   └── run-tests.js         # Shared assertions: parser + the real popup filter engine
@@ -115,10 +188,11 @@ That's it — no restart needed.
      `CPS`, `RPW`).
    The grid instantly filters down to just your classes; your picks are
    remembered for next time.
-5. Click **Export .ics** to download a calendar file. Import it into
-   Google Calendar, Apple Calendar, or Outlook — it creates 14 weeks of
-   recurring events on the correct weekdays (Saturday included), anchored
-   to your device's current date, using the exact GUC period bells:
+5. Click **Export PDF** to download a snapshot of exactly the grid
+   you're looking at — an A4-landscape page titled with your cohort name
+   (e.g. *IET & MET 3rd Semester I*), subtitled with your selected
+   tutorial group and German level, and laid out as the same color-coded
+   6-day grid with the exact GUC period bells in the column headers:
 
    | Period | Time |
    |---|---|
@@ -131,20 +205,6 @@ That's it — no restart needed.
 6. Even if the portal session later times out, your last successful scan
    stays cached (`chrome.storage.local`), so the popup keeps working
    offline until you next click Force Re-scan.
-
-### Importing the .ics file
-- **Google Calendar (web):** Settings → Import & export → Select file
-  from your computer → pick the downloaded `.ics` → Import.
-- **Apple Calendar (Mac):** double-click the downloaded `.ics` file.
-- **Outlook:** File → Open & Export → Import/Export → Import an iCalendar
-  file.
-
-### Changing the export start date
-By default, exports anchor to the *next upcoming* occurrence of each
-weekday from today, so events always land on real, current calendar
-dates. If your semester's actual start date is different and you want
-the very first event to fall in a specific week, open `popup/popup.js`
-and adjust the `computeUpcomingWeekDates()` function.
 
 ---
 
@@ -205,11 +265,15 @@ fuzzy. A few edge cases to be aware of:
   course-code registration treatment. Paste a real elective cell into
   `tests/fixtures.js` first.
 - **Cohort-lecture major matching is a heuristic.** When a cohort lecture
-  cell carries no explicit group tag, its major is guessed from the
-  course code's letter prefix (e.g. `ELCT` from `ELCT501`). If your
-  faculty's course codes don't follow that pattern, a cohort lecture
-  might not get filtered the way you expect — it will still be *shown*,
-  just possibly alongside a lecture from a different major.
+  cell carries no explicit group tag, its target major is guessed from the
+  course code's letter prefix (e.g. `ELCT` from `ELCT 708`) — unless the
+  row itself carries a faculty tag (e.g. `3 MET III 3G`), which wins for
+  faculty-code prefixes. Prefixes that aren't known faculty codes (math,
+  physics, humanities service courses) are shown to every group. If your
+  faculty's course codes don't follow that pattern and the row carries no
+  tag, a cohort lecture might not get filtered the way you expect — it
+  will still be *shown*, just possibly alongside a lecture from a
+  different major.
 - **The faculty/major name dictionary in `shared-constants.js`
   (`MAJOR_NAMES`) is not exhaustive.** Unrecognized major codes still
   decode structurally (semester, group number) in the translator, just

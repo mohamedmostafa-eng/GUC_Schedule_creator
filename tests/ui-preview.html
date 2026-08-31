@@ -1,12 +1,28 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GUC Timetable Matrix</title>
-  <link rel="stylesheet" href="popup.css">
+<meta charset="UTF-8">
+<title>UI Preview — GUC Timetable Matrix</title>
+<!-- Dev-only preview of the REAL popup UI (popup.html markup + popup.css +
+     popup.js) seeded with the shared fixture parse, so the UI can be
+     screenshotted and polished without a live portal session.
+
+     States:
+       ui-preview.html                 loaded grid (offline cache, selections applied)
+       ui-preview.html?state=stacked   German level only — 9 colliding cards in one cell (scroll case)
+       ui-preview.html?state=empty     no cache + no GUC tab (error banner + empty state)
+-->
+<link rel="stylesheet" href="../popup/popup.css">
+<style>
+  .preview-bar {
+    font: 11px sans-serif; color: #9ca3af; padding: 6px 2px;
+  }
+  .preview-bar a { color: #38bdf8; }
+</style>
 </head>
 <body>
+  <div class="preview-bar">UI preview — <a href="ui-preview.html">loaded</a> · <a href="ui-preview.html?state=stacked">stacked</a> · <a href="ui-preview.html?state=empty">empty/error</a></div>
+
   <div class="app-container">
     <!-- Top Control Bar -->
     <header class="header">
@@ -78,7 +94,51 @@
     </footer>
   </div>
 
+  <!-- Fixture markup lands here (hidden) so parseGUCMatrixDOM() can read it. -->
+  <div id="fixtureRoot" style="display:none"></div>
+
   <script src="../shared-constants.js"></script>
-  <script src="popup.js"></script>
+  <script src="../content.js"></script>
+  <script src="fixtures.js"></script>
+  <script>
+    // chrome.* stand-in. storage.local.get parses the fixture on demand and
+    // returns it as a version-3 cache, exactly the shape popup.js persists
+    // after a live scan. ?state=empty returns an empty store instead so the
+    // error/empty UI can be inspected.
+    (function () {
+      const urlState = new URLSearchParams(location.search).get('state') || '';
+      const empty = urlState === 'empty';
+      const prefs = urlState === 'stacked'
+        ? { tutorial: '', german: 'DE303', elective: '' }
+        : { tutorial: '3MET-019', german: 'DE303', elective: '' };
+      window.chrome = {
+        storage: {
+          local: {
+            get: (keys, cb) => {
+              if (empty) { cb({}); return; }
+              const root = document.getElementById('fixtureRoot');
+              root.innerHTML = GUC_TEST_FIXTURE_HTML;
+              injectSvgNoiseIntoFixture(root);
+              const parsed = parseGUCMatrixDOM();
+              cb({
+                guc_schedule_cache: {
+                  slots: parsed.data.slots,
+                  availableGroups: parsed.data.availableGroups,
+                  cohortName: parsed.data.cohortName,
+                  timestamp: '12:45 AM',
+                  parserVersion: 3
+                },
+                guc_user_prefs: prefs
+              });
+            },
+            set: () => {}
+          }
+        },
+        tabs: { query: async () => [], sendMessage: () => {}, create: () => {} },
+        runtime: { lastError: null }
+      };
+    })();
+  </script>
+  <script src="../popup/popup.js"></script>
 </body>
 </html>

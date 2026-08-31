@@ -33,6 +33,11 @@ const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
       runtime: { lastError: null }
     };
 
+    // jsdom does not implement the Encoding standard; popup.js's PDF
+    // builder (buildPdfFromJpeg) needs both.
+    window.TextEncoder = TextEncoder;
+    window.TextDecoder = TextDecoder;
+
     const BLOCK = new Set([
       'ADDRESS', 'ARTICLE', 'BLOCKQUOTE', 'DIV', 'DL', 'DT', 'DD',
       'FIELDSET', 'FIGURE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'HR',

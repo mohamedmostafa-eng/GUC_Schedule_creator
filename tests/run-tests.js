@@ -70,6 +70,64 @@ function runGucParserTests() {
   assert(mathLecReal && mathLecReal.isCohort === true && mathLecReal.groups.length === 0,
     'REAL PORTAL: lecture row whose tag column reads "3 MET III 3G" (no T-number) stays a clean cohort lecture');
 
+  // ---------- parser: spaced / mixed-case real-portal course codes ----------
+  const elctLecture = slots.find(s => s.day === 'Saturday' && s.period === 5);
+  assert(elctLecture && elctLecture.course === 'ELCT 708' && elctLecture.type === 'Lecture',
+    'REAL PORTAL: spaced "ELCT 708" lecture keeps its course code (background/title attributes break nothing)');
+  assert(elctLecture && elctLecture.isCohort === true && elctLecture.cohortMajor === 'MET',
+    'REAL PORTAL: cross-listed lecture\'s cohort major comes from its row tag (3 MET III 3G), not the ELCT course prefix');
+  const phystLecture = slots.find(s => s.day === 'Sunday' && s.period === 3);
+  assert(phystLecture && phystLecture.course === 'PHYST 301',
+    'REAL PORTAL: mixed-case "PHYSt 301" lecture parses as a real course code (previously fell back to GENERAL)');
+  assert(phystLecture && phystLecture.isCohort === true && phystLecture.cohortMajor === 'PHYST',
+    'REAL PORTAL: service-course prefix (PHYST is not a faculty code) wins over the row\'s MET tag — tagging it MET must not hide it from other groups');
+  const spacedGerman = slots.find(s => s.day === 'Monday' && s.period === 1);
+  assert(spacedGerman && spacedGerman.course === 'DE 303' && spacedGerman.room === 'C2.105',
+    'REAL PORTAL: spaced "DE 303 Tut" row is extracted with its course code and room');
+  assert(getBadgeTypeKey(spacedGerman) === 'german',
+    'BADGE: German row whose primary token is a tutorial tag renders with the German badge, not the tutorial one');
+  const physSvcLecture = slots.find(s => s.day === 'Tuesday' && s.period === 5);
+  assert(physSvcLecture && physSvcLecture.course === 'PHYS 201' && physSvcLecture.type === 'Lecture',
+    'SYNTHETIC: service lecture "PHYS 201" in a faculty-tagged plain cell parses with course code and type');
+  assert(physSvcLecture && physSvcLecture.isCohort === true && physSvcLecture.cohortMajor === 'PHYS',
+    'SYNTHETIC: service-course prefix (PHYS, not a faculty code) wins over the row\'s CSEN tag — the "lectures removed for no reason" regression');
+
+  // ---------- cohort name (portal schedule-type dropdown) ----------
+  assert(result.data.cohortName === 'IET & MET 3rd Semester I',
+    'REAL PORTAL: cohort name is read from the SELECTED option of the schedule-type dropdown (entity-decoded "&", placeholder option skipped)');
+
+  const fixtureSelect = document.getElementById('ContentPlaceHolderright_ContentPlaceHoldercontent_scdTpLst');
+  const savedSelectId = fixtureSelect.id;
+  const savedSelectIndex = fixtureSelect.selectedIndex;
+  fixtureSelect.id = '';        // strip the portal id to force the fallback scan
+  fixtureSelect.selectedIndex = 0; // "Select ........." — not a cohort name
+  const probeSelect = document.createElement('select');
+  const probePlaceholder = document.createElement('option');
+  probePlaceholder.textContent = 'Select .........';
+  const probeCohort = document.createElement('option');
+  probeCohort.textContent = 'Architecture 1st Semester\n I'; // real markup has an embedded newline
+  probeCohort.selected = true;
+  probeSelect.appendChild(probePlaceholder);
+  probeSelect.appendChild(probeCohort);
+  root.appendChild(probeSelect);
+  assert(extractCohortName() === 'Architecture 1st Semester I',
+    'COHORT: without the portal id the fallback scan finds the cohort select, and the embedded newline in the option text is collapsed');
+  probeSelect.remove();
+  fixtureSelect.id = savedSelectId;
+  fixtureSelect.selectedIndex = savedSelectIndex;
+
+  // ---------- PDF export document structure ----------
+  const fakeJpeg = new Uint8Array([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x01]);
+  const pdfBytes = buildPdfFromJpeg(fakeJpeg, 1684, 1190, 842, 595);
+  const pdfString = new TextDecoder().decode(pdfBytes);
+  assert(pdfString.startsWith('%PDF-1.4\n'), 'PDF: file starts with the %PDF-1.4 header');
+  assert(pdfString.includes('/Filter /DCTDecode /Length ' + fakeJpeg.length),
+    'PDF: the rendered schedule is embedded as a DCTDecode image with its exact byte length');
+  assert(pdfString.includes('/MediaBox [0 0 842 595]'), 'PDF: page size is A4 landscape');
+  const startxref = parseInt(pdfString.slice(pdfString.lastIndexOf('startxref') + 10), 10);
+  assert(pdfString.slice(startxref, startxref + 4) === 'xref',
+    'PDF: startxref byte offset points at the cross-reference table (the document is structurally valid)');
+
   // ---------- popup filter engine (real computeFilteredSlots) ----------
   const filter = (tutorial, german) => computeFilteredSlots(slots, { tutorial: tutorial || '', german: german || '', elective: '' });
   // Scoped to Thursday: the synthetic legacy suite also carries a
@@ -87,6 +145,19 @@ function runGucParserTests() {
     'FILTER: service-course lecture (MATH301 — course prefix is not a faculty code) is NOT hidden from a MET-group student');
   assert(!tutOnly.some(s => s.course === 'CSEN401' && s.type === 'Lecture' && s.day === 'Saturday'),
     'FILTER: another faculty\'s cohort lecture (CSEN401 vs selected MET group) is still excluded');
+  assert(tutOnly.some(s => s.course === 'ELCT 708'),
+    'FILTER: cross-listed lecture (ELCT 708 tagged for the MET cohort) is visible to the MET student — prefix-only inference used to hide it');
+  assert(tutOnly.some(s => s.course === 'PHYST 301'),
+    'FILTER: mixed-case PHYSt lecture is visible to the MET student');
+  assert(tutOnly.some(s => s.course === 'PHYS 201'),
+    'FILTER: service lecture filed in another faculty\'s tagged row (PHYS 201 in a CSEN-tagged cell) is NOT removed when a MET tutorial is selected — the "lectures removed for no reason" regression');
+  assert(filter('', 'DE303').some(s => s.course === 'DE 303'),
+    'FILTER: German level alone matches the spaced "DE 303" row (normalized course-code comparison)');
+  assert(filter('3MET-016', 'DE303').some(s => s.course === 'DE 303' && s.room === 'C2.105'),
+    'FILTER: German level + own tutorial group surfaces the spaced German row');
+  const widened = filter('3MET-011', 'DE303').filter(s => normalizeCourseCode(s.course) === 'DE303');
+  assert(widened.length === 11,
+    'FILTER: German group number independent of the tutorial group (011 matches no DE303 row tag) widens to ALL DE303 rows — the 9 stacked Thursday rooms + both Monday rows — instead of hiding German entirely ("German tuts not going in German")');
 
   return { results, parseResult: result };
 }

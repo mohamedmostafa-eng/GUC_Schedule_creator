@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "GUC Dynamic Schedule Matrix",
-  "version": "2.0.0",
-  "description": "Parses and visualizes GUC semester schedules into a personalized, color-coded timetable with one-click calendar export.",
+  "version": "2.1.0",
+  "description": "Parses and visualizes GUC semester schedules into a personalized, color-coded timetable with one-click PDF export.",
   "permissions": [
     "activeTab",
     "storage",

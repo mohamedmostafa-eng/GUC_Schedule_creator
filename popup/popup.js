@@ -1,18 +1,24 @@
 /**
- * GUC Schedule Matrix: Controller, State Manager & ICS Exporter (v2.0.0)
+ * GUC Schedule Matrix: Controller, State Manager & PDF Exporter (v2.1.0)
  *
- * WORKING_DAYS / ICS_DAY_MAP / JS_DAY_INDEX / PERIODS / groupTokenKey all
- * come from shared-constants.js, loaded before this file in popup.html —
- * this file no longer keeps its own copy of any of those (that drift is
- * what caused the original Saturday-missing bug).
+ * WORKING_DAYS / PERIODS / GERMAN_LEVELS / groupTokenKey all come from
+ * shared-constants.js, loaded before this file in popup.html — this file
+ * no longer keeps its own copy of any of those (that drift is what caused
+ * the original Saturday-missing bug).
  */
 
 const GUC_SCHEDULE_URL = 'https://apps.guc.edu.eg/student_ext/Scheduling/GeneralGroupSchedule.aspx';
+
+// Bump whenever the parser's slot shape or the filter's semantics change:
+// chrome.storage.local survives extension reloads, so slots cached by an
+// older parser would silently mask the fix until a manual re-scan.
+const SCHEDULE_CACHE_VERSION = 3;
 
 // Application State
 const state = {
   rawSlots: [],
   availableGroups: { tutorials: [], german: [], electives: [] },
+  cohortName: '',         // from the portal's schedule-type dropdown, e.g. "IET & MET 3rd Semester I"
   selectedTutorial: '',   // a groupTokenKey, e.g. "5MCTR-041"
   selectedGerman: '',     // a DE level, e.g. "DE201"
   selectedElective: '',   // a track+number key, e.g. "CPS031"
@@ -22,6 +28,7 @@ const state = {
 // DOM References
 const elements = {
   statusBadge: document.getElementById('statusIndicator'),
+  cohortChip: document.getElementById('cohortNameChip'),
   errorBanner: document.getElementById('errorBanner'),
   errorText: document.getElementById('errorText'),
   openScheduleBtn: document.getElementById('openScheduleBtn'),
@@ -29,7 +36,7 @@ const elements = {
   tutTranslator: document.getElementById('tutTranslator'),
   deSelect: document.getElementById('deSelect'),
   smSelect: document.getElementById('smSelect'),
-  exportBtn: document.getElementById('exportIcsBtn'),
+  exportBtn: document.getElementById('exportPdfBtn'),
   refreshBtn: document.getElementById('refreshBtn'),
   gridMatrix: document.getElementById('gridMatrix'),
   emptyState: document.getElementById('emptyState'),
@@ -63,7 +70,7 @@ function attachEventListeners() {
     renderSchedule();
   });
 
-  elements.exportBtn.addEventListener('click', generateAndDownloadICS);
+  elements.exportBtn.addEventListener('click', generateAndDownloadPDF);
   elements.refreshBtn.addEventListener('click', () => initScheduleScan(true));
   elements.openScheduleBtn.addEventListener('click', () => {
     chrome.tabs.create({ url: GUC_SCHEDULE_URL });
@@ -79,9 +86,10 @@ async function loadPersistedState() {
         state.selectedGerman = result.guc_user_prefs.german || '';
         state.selectedElective = result.guc_user_prefs.elective || '';
       }
-      if (result.guc_schedule_cache) {
+      if (result.guc_schedule_cache && result.guc_schedule_cache.parserVersion === SCHEDULE_CACHE_VERSION) {
         state.rawSlots = result.guc_schedule_cache.slots || [];
         state.availableGroups = result.guc_schedule_cache.availableGroups || { tutorials: [], german: [], electives: [] };
+        state.cohortName = result.guc_schedule_cache.cohortName || '';
         state.lastSynced = result.guc_schedule_cache.timestamp || null;
         updateUIWithCachedData();
       }
@@ -100,11 +108,11 @@ function persistUserPreferences() {
   });
 }
 
-function persistScheduleCache(slots, availableGroups) {
+function persistScheduleCache(slots, availableGroups, cohortName) {
   const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   state.lastSynced = timestamp;
   chrome.storage.local.set({
-    guc_schedule_cache: { slots, availableGroups, timestamp }
+    guc_schedule_cache: { slots, availableGroups, cohortName, timestamp, parserVersion: SCHEDULE_CACHE_VERSION }
   });
   elements.syncTimestamp.textContent = `Synced at ${timestamp}`;
 }
@@ -127,33 +135,71 @@ async function initScheduleScan(isForce = false) {
       return;
     }
 
-    chrome.tabs.sendMessage(tab.id, { action: 'PARSE_GUC_SCHEDULE' }, (response) => {
-      if (chrome.runtime.lastError || !response || !response.success) {
-        if (state.rawSlots.length > 0) {
-          updateStatus('ready', 'Using Cache');
-        } else {
-          updateStatus('error', 'Table Not Found');
-        }
-        const errMsg = (response && response.error)
-          ? response.error
-          : 'Could not read the schedule table. Make sure you are logged in and on the schedule page, then reload it and try again.';
-        showError(errMsg, true);
-        return;
+    const response = await requestScheduleParse(tab.id);
+
+    if (!response || !response.success) {
+      if (state.rawSlots.length > 0) {
+        updateStatus('ready', 'Using Cache');
+      } else {
+        updateStatus('error', 'Table Not Found');
       }
+      const errMsg = (response && response.error)
+        ? response.error
+        : 'Could not read the schedule table. Make sure you are logged in and on the schedule page, then click "Force Re-scan" again.';
+      showError(errMsg, true);
+      return;
+    }
 
-      state.rawSlots = response.data.slots;
-      state.availableGroups = response.data.availableGroups;
-      persistScheduleCache(state.rawSlots, state.availableGroups);
+    state.rawSlots = response.data.slots;
+    state.availableGroups = response.data.availableGroups;
+    state.cohortName = response.data.cohortName || '';
+    persistScheduleCache(state.rawSlots, state.availableGroups, state.cohortName);
 
-      populateDropdowns();
-      updateTranslatorPanel();
-      updateStatus('ready', 'Synced Live');
-      renderSchedule();
-    });
+    populateDropdowns();
+    updateTranslatorPanel();
+    renderCohortName();
+    updateStatus('ready', 'Synced Live');
+    renderSchedule();
   } catch (err) {
     updateStatus('error', 'Scan Error');
     showError('Unexpected error while scanning the tab: ' + (err && err.message ? err.message : String(err)));
   }
+}
+
+// Ask the content script in the tab to parse the page. When nothing
+// answers, the tab was opened before the last extension reload/update, so
+// the manifest-injected content script never ran there. Inject the scripts
+// programmatically (content.js guards against double registration) and ask
+// again — this is what makes Force Re-scan work without forcing the user
+// to reload the portal page itself. A response of {success:false} is a
+// REAL parse failure (e.g. not logged in) and is not retried.
+async function requestScheduleParse(tabId) {
+  let response = await sendTabMessage(tabId, { action: 'PARSE_GUC_SCHEDULE' });
+  if (!response && chrome.scripting && chrome.scripting.executeScript) {
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        files: ['shared-constants.js', 'content.js']
+      });
+      response = await sendTabMessage(tabId, { action: 'PARSE_GUC_SCHEDULE' });
+    } catch (injectionErr) {
+      // Tab navigated away or refused injection — fall through and let
+      // the normal failure path report it.
+    }
+  }
+  return response;
+}
+
+function sendTabMessage(tabId, message) {
+  return new Promise(resolve => {
+    try {
+      chrome.tabs.sendMessage(tabId, message, response => {
+        resolve(chrome.runtime.lastError ? null : response);
+      });
+    } catch (err) {
+      resolve(null);
+    }
+  });
 }
 
 function updateStatus(type, message) {
@@ -179,7 +225,19 @@ function updateUIWithCachedData() {
   }
   populateDropdowns();
   updateTranslatorPanel();
+  renderCohortName();
   renderSchedule();
+}
+
+function renderCohortName() {
+  if (!elements.cohortChip) return;
+  if (state.cohortName) {
+    elements.cohortChip.textContent = state.cohortName;
+    elements.cohortChip.classList.remove('hidden');
+  } else {
+    elements.cohortChip.textContent = '';
+    elements.cohortChip.classList.add('hidden');
+  }
 }
 
 function populateDropdowns() {
@@ -254,6 +312,24 @@ function computeFilteredSlots(rawSlots, selection) {
 
   const selectedTutorialParsed = selection.tutorial ? parseGroupKey(selection.tutorial) : null;
 
+  // German pre-pass: a student's German group number is assigned by German
+  // level and is usually NOT the same as their main tutorial/practical
+  // group number. The old rule only let the German level match when no
+  // tutorial was selected, so the moment a student picked their (required)
+  // tutorial group, their German row matched neither the tutorial rule
+  // (different number) nor the level rule (blocked) and silently vanished
+  // ("German not going in German"). Now: if the selected tutorial group
+  // happens to match a German room at the selected level we keep the tight
+  // one-room narrowing; otherwise the level widens to every row of that
+  // German level so the class is always shown.
+  let germanNarrowedByTutorial = false;
+  if (selection.german && selectedTutorialParsed) {
+    germanNarrowedByTutorial = rawSlots.some(slot =>
+      isGermanLevelSlot(slot, selection.german) &&
+      matchesSelectedTutorialGroup(slot.groups || [], selectedTutorialParsed)
+    );
+  }
+
   return rawSlots.filter(slot => {
     // 1. Cohort lectures apply to everyone, UNLESS both the lecture's
     // course-code prefix and the selected group's major are real faculty
@@ -281,14 +357,18 @@ function computeFilteredSlots(rawSlots, selection) {
     // period cell — "DE303 Tut | C2.105 | 3 MET III 3G T016", "DE303 Tut |
     // C2.106 | 3 MET III 3G T017", ... — every row sharing the course
     // code. The DE level identifies the COURSE, not the row; the row's own
-    // tutorial tag identifies the student's room. So when a tutorial group
-    // is also selected, rule 2 above has already decided this row on its
-    // own group tag, and the level must NOT also pull in the other rooms'
-    // rows stacked in the same cell. Level-only matching applies only when
-    // no tutorial group is selected to narrow by.
+    // tutorial tag identifies the student's room. The course comparison is
+    // normalized: the portal renders the code with a space ("DE 303") in
+    // the same style as "ELCT 708", so a raw === never matched.
     if (selection.german) {
       if (groups.some(g => g.category === 'german' && g.level === selection.german)) return true;
-      if (slot.course === selection.german && !selectedTutorialParsed) return true;
+      if (normalizeCourseCode(slot.course) === selection.german) {
+        // Only suppress the sibling rooms when the tutorial selection is
+        // actually narrowing THIS level to one room; otherwise (student's
+        // German group differs from their main tutorial group) show every
+        // room of the level rather than none.
+        if (!germanNarrowedByTutorial) return true;
+      }
     }
 
     // 4. Elective/Humanities matching (token-based; elective rows have not
@@ -299,6 +379,14 @@ function computeFilteredSlots(rawSlots, selection) {
 
     return false;
   });
+}
+
+// True when this slot is one of the rows belonging to the given German
+// level — either its course code IS the level (real-portal shape) or it
+// carries a german-category token (legacy/synthetic shape).
+function isGermanLevelSlot(slot, level) {
+  if (normalizeCourseCode(slot.course) === level) return true;
+  return (slot.groups || []).some(g => g.category === 'german' && g.level === level);
 }
 
 // True when one of the slot's group tokens is the selected tutorial/
@@ -405,6 +493,11 @@ function getBadgeTypeKey(slot) {
     if (primary.category === 'german') return 'german';
     if (primary.category === 'elective') return 'elective';
   }
+  // Real-portal German rows carry their level as the COURSE code while
+  // their primary token is the row's own tutorial tag — without this check
+  // they rendered with the tutorial badge (the "German shows up as a
+  // tutorial" symptom). Normalized so spaced "DE 303" matches too.
+  if (GERMAN_LEVELS.includes(normalizeCourseCode(slot.course))) return 'german';
   const typeLower = (slot.type || '').toLowerCase();
   if (typeLower.includes('lab')) return 'lab';
   return 'tut';
@@ -416,96 +509,258 @@ function escapeHTML(str) {
   );
 }
 
-// RFC 5545 iCalendar File Exporter
-function generateAndDownloadICS() {
+// ---------------------------------------------------------------------------
+// PDF Export — the filtered matrix is drawn onto an offscreen canvas at
+// print resolution, JPEG-encoded, and wrapped in a minimal hand-built
+// single-page PDF (A4 landscape). No libraries: a PDF is just a header,
+// five objects (catalog, pages, page, image XObject, content stream) and a
+// cross-reference table, and JPEG bytes drop straight into an image object
+// via the DCTDecode filter. buildPdfFromJpeg is pure bytes-in/bytes-out so
+// the offline suite can verify the document structure without a canvas.
+// ---------------------------------------------------------------------------
+
+// A4 landscape in PDF points.
+const PDF_PAGE_W = 842;
+const PDF_PAGE_H = 595;
+// Supersampling factor for the canvas render (sharper text when printed).
+const PDF_SCALE = 2;
+
+// Print-friendly light palette mirroring the popup's badge themes.
+const PDF_BADGE_COLORS = {
+  lecture:  { accent: '#0284c7', bg: '#e0f2fe', text: '#0c4a6e' },
+  tut:      { accent: '#d97706', bg: '#fef3c7', text: '#78350f' },
+  lab:      { accent: '#059669', bg: '#d1fae5', text: '#064e3b' },
+  german:   { accent: '#9333ea', bg: '#f3e8ff', text: '#581c87' },
+  elective: { accent: '#e11d48', bg: '#ffe4e6', text: '#881337' }
+};
+
+function generateAndDownloadPDF() {
   const filteredSlots = getFilteredSlots();
   if (!filteredSlots.length) {
     alert('No active slots available to export. Please select your groups.');
     return;
   }
 
-  // Anchor dates: next real upcoming occurrence of each weekday from today.
-  // Adjust computeUpcomingWeekDates() below if you want a different start
-  // week (see README "Changing the export start date").
-  const baseDateMap = computeUpcomingWeekDates();
+  const canvas = renderScheduleCanvas(filteredSlots);
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+  const jpegBytes = Uint8Array.from(atob(dataUrl.split(',')[1]), c => c.charCodeAt(0));
+  const pdfBytes = buildPdfFromJpeg(jpegBytes, canvas.width, canvas.height, PDF_PAGE_W, PDF_PAGE_H);
 
-  let icsLines = [
-    'BEGIN:VCALENDAR',
-    'VERSION:2.0',
-    'PRODID:-//GUC Schedule Matrix//EN',
-    'CALSCALE:GREGORIAN',
-    'METHOD:PUBLISH',
-    'X-WR-CALNAME:GUC Semester Schedule',
-    'X-WR-TIMEZONE:Africa/Cairo'
-  ];
-
-  filteredSlots.forEach((slot, index) => {
-    const dayCode = ICS_DAY_MAP[slot.day];
-    const baseDate = baseDateMap[slot.day];
-    const periodData = PERIODS.find(p => p.id === slot.period);
-
-    if (!dayCode || !baseDate || !periodData) return;
-
-    const startDT = `${baseDate}T${periodData.icsStart}`;
-    const endDT = `${baseDate}T${periodData.icsEnd}`;
-    const uid = `guc-${slot.course}-${slot.day}-${slot.period}-${index}@matrix`;
-    const groupLabel = slot.group ? slot.group.raw : 'Common Lecture';
-
-    icsLines.push(
-      'BEGIN:VEVENT',
-      `UID:${uid}`,
-      `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').split('.')[0]}Z`,
-      `DTSTART;TZID=Africa/Cairo:${startDT}`,
-      `DTEND;TZID=Africa/Cairo:${endDT}`,
-      `RRULE:FREQ=WEEKLY;BYDAY=${dayCode};COUNT=14`,
-      `SUMMARY:${slot.course} - ${slot.type}`,
-      `LOCATION:Room ${slot.room}, GUC Campus`,
-      `DESCRIPTION:Class Type: ${slot.type}\\nGroup Tag: ${groupLabel}`,
-      'STATUS:CONFIRMED',
-      'END:VEVENT'
-    );
-  });
-
-  icsLines.push('END:VCALENDAR');
-
-  const blob = new Blob([icsLines.join('\r\n')], { type: 'text/calendar;charset=utf-8' });
+  const blob = new Blob([pdfBytes], { type: 'application/pdf' });
   const downloadUrl = URL.createObjectURL(blob);
   const downloadAnchor = document.createElement('a');
+  const label = (state.cohortName || state.selectedTutorial || 'Cohort').replace(/[^\w&+()-]+/g, '_');
 
-  const groupLabel = state.selectedTutorial || 'Cohort';
   downloadAnchor.href = downloadUrl;
-  downloadAnchor.download = `GUC_Schedule_${groupLabel}.ics`;
+  downloadAnchor.download = `GUC_Schedule_${label}.pdf`;
   document.body.appendChild(downloadAnchor);
   downloadAnchor.click();
   document.body.removeChild(downloadAnchor);
   URL.revokeObjectURL(downloadUrl);
 }
 
-// Calculates the date (YYYYMMDD) of the next occurrence of each working day,
-// starting from today, so exports always anchor to a real upcoming week
-// instead of a hardcoded past/future semester date.
-function computeUpcomingWeekDates() {
-  const today = new Date();
-  const result = {};
+// Draws the full printable page — title block plus the 6-day x 5-period
+// grid — into an offscreen canvas and returns it. Coordinates are PDF
+// points; the context is pre-scaled by PDF_SCALE.
+function renderScheduleCanvas(filteredSlots) {
+  const canvas = document.createElement('canvas');
+  canvas.width = PDF_PAGE_W * PDF_SCALE;
+  canvas.height = PDF_PAGE_H * PDF_SCALE;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(PDF_SCALE, PDF_SCALE);
 
-  WORKING_DAYS.forEach(day => {
-    const targetIdx = JS_DAY_INDEX[day];
-    const currentIdx = today.getDay();
-    let diff = targetIdx - currentIdx;
-    if (diff < 0) diff += 7;
-    const d = new Date(today);
-    d.setDate(today.getDate() + diff);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day2 = String(d.getDate()).padStart(2, '0');
-    result[day] = `${y}${m}${day2}`;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, PDF_PAGE_W, PDF_PAGE_H);
+
+  const margin = 26;
+
+  // Title block: cohort name (or generic title) + selection summary.
+  ctx.fillStyle = '#0f172a';
+  ctx.font = 'bold 17px Arial, sans-serif';
+  ctx.fillText(state.cohortName || 'GUC Semester Schedule', margin, margin + 16);
+
+  const summaryParts = [];
+  if (state.selectedTutorial) summaryParts.push(`Group ${state.selectedTutorial}`);
+  if (state.selectedGerman) summaryParts.push(`German ${state.selectedGerman}`);
+  if (state.selectedElective) summaryParts.push(`Elective ${state.selectedElective}`);
+  summaryParts.push(`Generated ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
+  ctx.fillStyle = '#64748b';
+  ctx.font = '9px Arial, sans-serif';
+  ctx.fillText(summaryParts.join('   |   '), margin, margin + 34);
+
+  // Grid geometry.
+  const gridX = margin;
+  const gridY = margin + 52;
+  const dayColW = 104;
+  const periodColW = (PDF_PAGE_W - margin * 2 - dayColW) / PERIODS.length;
+  const headerRowH = 30;
+  const dayRowH = (PDF_PAGE_H - gridY - headerRowH - margin) / WORKING_DAYS.length;
+
+  ctx.strokeStyle = '#cbd5e1';
+  ctx.lineWidth = 1;
+
+  // Header row: corner cell + period labels with bell times.
+  ctx.fillStyle = '#f1f5f9';
+  ctx.fillRect(gridX, gridY, dayColW + periodColW * PERIODS.length, headerRowH);
+  drawPdfBoxLabel(ctx, gridX, gridY, dayColW, headerRowH, 'Day / Periods', 'bold 8px Arial, sans-serif', '#64748b');
+  ctx.strokeRect(gridX, gridY, dayColW, headerRowH);
+
+  PERIODS.forEach((p, i) => {
+    const x = gridX + dayColW + i * periodColW;
+    ctx.fillStyle = '#0f172a';
+    ctx.font = 'bold 8.5px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(p.label, x + periodColW / 2, gridY + 13);
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '7px Arial, sans-serif';
+    ctx.fillText(`${p.start} - ${p.end}`, x + periodColW / 2, gridY + 23);
+    ctx.textAlign = 'left';
+    ctx.strokeRect(x, gridY, periodColW, headerRowH);
   });
 
-  return result;
+  // Day rows.
+  WORKING_DAYS.forEach((day, rowIdx) => {
+    const y = gridY + headerRowH + rowIdx * dayRowH;
+
+    ctx.fillStyle = '#f1f5f9';
+    ctx.fillRect(gridX, y, dayColW, dayRowH);
+    drawPdfBoxLabel(ctx, gridX, y, dayColW, dayRowH, day, 'bold 9px Arial, sans-serif', '#334155');
+    ctx.strokeRect(gridX, y, dayColW, dayRowH);
+
+    PERIODS.forEach((period, colIdx) => {
+      const x = gridX + dayColW + colIdx * periodColW;
+      const cellSlots = filteredSlots.filter(s => s.day === day && s.period === period.id);
+      drawPdfSlotCell(ctx, x, y, periodColW, dayRowH, cellSlots);
+      ctx.strokeRect(x, y, periodColW, dayRowH);
+    });
+  });
+
+  return canvas;
+}
+
+function drawPdfBoxLabel(ctx, x, y, w, h, text, font, color) {
+  ctx.fillStyle = color;
+  ctx.font = font;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, x + w / 2, y + h / 2);
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+}
+
+function drawPdfSlotCell(ctx, x, y, w, h, slots) {
+  if (!slots.length) {
+    drawPdfBoxLabel(ctx, x, y, w, h, '—', 'bold 10px Arial, sans-serif', '#d1d5db');
+    return;
+  }
+
+  const pad = 4;
+  const gap = 3;
+  const cardH = Math.max(13, Math.min(30, (h - pad * 2 - gap * (slots.length - 1)) / slots.length));
+
+  slots.forEach((slot, i) => {
+    const cardY = y + pad + i * (cardH + gap);
+    if (cardY + cardH > y + h - pad + 1 && i > 0) return; // don't overflow the cell
+    const colors = PDF_BADGE_COLORS[getBadgeTypeKey(slot)] || PDF_BADGE_COLORS.tut;
+    const cardX = x + pad;
+    const cardW = w - pad * 2;
+
+    pathRounded(ctx, cardX, cardY, cardW, cardH, 3);
+    ctx.fillStyle = colors.bg;
+    ctx.fill();
+    ctx.fillStyle = colors.accent;
+    ctx.fillRect(cardX, cardY, 3, cardH);
+
+    ctx.fillStyle = colors.text;
+    if (cardH >= 22) {
+      ctx.font = 'bold 7.5px Arial, sans-serif';
+      ctx.fillText(fitText(ctx, slot.course, cardW - 12), cardX + 7, cardY + 10);
+      ctx.font = '6px Arial, sans-serif';
+      ctx.fillText(fitText(ctx, slot.type, cardW - 40), cardX + 7, cardY + cardH - 5);
+      ctx.textAlign = 'right';
+      ctx.font = 'bold 6px Arial, sans-serif';
+      ctx.fillText(slot.room, cardX + cardW - 4, cardY + cardH - 5);
+      ctx.textAlign = 'left';
+    } else {
+      ctx.font = 'bold 6.5px Arial, sans-serif';
+      ctx.fillText(fitText(ctx, `${slot.course} · ${slot.room}`, cardW - 12), cardX + 7, cardY + cardH / 2 + 2);
+    }
+  });
+}
+
+function pathRounded(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function fitText(ctx, text, maxWidth) {
+  text = String(text || '');
+  if (ctx.measureText(text).width <= maxWidth) return text;
+  while (text.length > 1 && ctx.measureText(text + '…').width > maxWidth) {
+    text = text.slice(0, -1);
+  }
+  return text + '…';
+}
+
+// Wraps raw JPEG bytes into a minimal valid single-page PDF whose page is
+// exactly one full-bleed image. Pure and synchronous so tests can assert
+// on the byte structure (header, DCTDecode image, xref, trailer).
+function buildPdfFromJpeg(jpegBytes, pixelWidth, pixelHeight, widthPt, heightPt) {
+  const encoder = new TextEncoder();
+  const chunks = [];
+  let offset = 0;
+  const offsets = {};
+
+  const push = (data) => {
+    const bytes = typeof data === 'string' ? encoder.encode(data) : data;
+    chunks.push(bytes);
+    offset += bytes.length;
+  };
+  const beginObject = (n, body) => {
+    offsets[n] = offset;
+    push(`${n} 0 obj\n${body}\nendobj\n`);
+  };
+
+  push('%PDF-1.4\n');
+  beginObject(1, '<< /Type /Catalog /Pages 2 0 R >>');
+  beginObject(2, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+  beginObject(3,
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${widthPt} ${heightPt}] ` +
+    '/Resources << /XObject << /Im1 4 0 R >> >> /Contents 5 0 R >>');
+
+  offsets[4] = offset;
+  push('4 0 obj\n<< /Type /XObject /Subtype /Image ' +
+    `/Width ${pixelWidth} /Height ${pixelHeight} /ColorSpace /DeviceRGB ` +
+    `/BitsPerComponent 8 /Filter /DCTDecode /Length ${jpegBytes.length} >>\nstream\n`);
+  push(jpegBytes);
+  push('\nendstream\nendobj\n');
+
+  const contentStream = `q ${widthPt} 0 0 ${heightPt} 0 0 cm /Im1 Do Q`;
+  beginObject(5, `<< /Length ${contentStream.length} >>\nstream\n${contentStream}\nendstream`);
+
+  const xrefOffset = offset;
+  push('xref\n0 6\n0000000000 65535 f \n');
+  for (let i = 1; i <= 5; i++) {
+    push(String(offsets[i]).padStart(10, '0') + ' 00000 n \n');
+  }
+  push(`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`);
+
+  const out = new Uint8Array(offset);
+  let position = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, position);
+    position += chunk.length;
+  }
+  return out;
 }
 
 // Offline test harness hook: lets tests/test-harness.html (and its Node
 // runner) call the real filter engine without a chrome.* runtime.
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { computeFilteredSlots, parseGroupKey };
+  module.exports = { computeFilteredSlots, parseGroupKey, getBadgeTypeKey, buildPdfFromJpeg };
 }

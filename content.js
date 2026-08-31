@@ -1,8 +1,19 @@
 /**
- * GUC Schedule Matrix - Hardened DOM Extraction Engine (v2.0.0)
+ * GUC Schedule Matrix - Hardened DOM Extraction Engine (v2.1.0)
  * Runs only on apps.guc.edu.eg (see manifest.json host_permissions).
  * Reads the schedule table already rendered in the page. Sends nothing
  * anywhere else — all data stays inside the browser (chrome.storage.local).
+ *
+ * v2.1.0 changes:
+ *   - extractCohortName(): reads the portal's schedule-type <select>
+ *     (id ..._scdTpLst, e.g. "IET & MET 3rd Semester I") so the popup can
+ *     show — and the PDF export can title itself with — the full cohort
+ *     name, with a whitespace-collapsing fallback scan of other selects.
+ *   - The onMessage listener is now registered behind an idempotency
+ *     guard (window.__gucMatrixContentLoaded) so popup.js can safely
+ *     re-inject this file via chrome.scripting into tabs that were opened
+ *     before the extension last reloaded (the Force Re-scan fix) without
+ *     stacking duplicate listeners.
  *
  * v2.0.0 changes:
  *   - Two-pass extraction: a cell with a nested <table> is now read ONLY
@@ -24,7 +35,10 @@
 // Comprehensive Regex Tokenizers. \s* (not \s?) throughout so multi-space /
 // tab / newline gaps in innerText — common once text comes from nested
 // <table> cells or multi-<td> rows — don't silently break a match.
-const REGEX_COURSE = /\b([A-Z]{2,6}\s*\d{3}[A-Za-z]?)\b/;
+// The optional [a-z] inside the course-code block tolerates the portal's
+// stray-lowercase codes ("PHYSt 301" was previously no match at all, which
+// degraded the row to a "GENERAL" slot); the code is uppercased downstream.
+const REGEX_COURSE = /\b([A-Z]{2,6}[a-z]?\s*\d{3}[A-Za-z]?)\b/;
 const REGEX_ROOM = /\b(H\d{1,2}[A-Z]?|[A-G]\d\.\d{3})\b/i;
 const REGEX_TYPE = /\b(Lecture|Tut(?:orial)?|Lab|Prac(?:tical)?)\b/i;
 
@@ -188,6 +202,55 @@ function inferMajorFromCourse(courseCode) {
   return m ? m[1] : null;
 }
 
+// A faculty tag WITHOUT a T/P group number ("3 MET III 3G" in a cohort
+// lecture row's tag column — the numbered variants are already captured by
+// REGEX_GROUP_TOKENS as group tokens). The lookahead requires a roman
+// year or section token after the major so ordinary prose or a bare
+// "digit + word" fragment can't fire it.
+const REGEX_FACULTY_TAG = /(?<![A-Za-z0-9])\d\s+([A-Z]{2,6})(?=\s+(?:[IVX]{1,4}|\d{1,2}[A-Z])\b)/;
+
+// Who a cohort lecture is for. Two cases, deliberately different:
+//
+//  - SERVICE courses (prefix is NOT a known faculty code — MATH, PHYS,
+//    CHEM, ...): keep the non-faculty prefix. The faculty tag on their row
+//    only says which section the row is filed under, not who attends —
+//    treating it as the audience hid service lectures from students whose
+//    own major differed from that tag ("lectures removed when I choose a
+//    tutorial"). A non-faculty cohortMajor makes the popup show them to all.
+//
+//  - FACULTY-specific lectures (prefix IS a known faculty code): the row's
+//    own faculty tag is the best audience signal — a cross-listed lecture
+//    ("ELCT 708" Electric Machines filed under a MET row tagged
+//    "3 MET III 3G") is for MET even though its prefix says ELCT. Fall back
+//    to the prefix when the row carries no tag.
+function inferCohortMajor(text, courseCode) {
+  const prefix = inferMajorFromCourse(courseCode);
+  if (!prefix || !MAJOR_NAMES[prefix]) return prefix;
+  const tag = text.match(REGEX_FACULTY_TAG);
+  return tag ? tag[1] : prefix;
+}
+
+// The cohort name of the currently displayed schedule, taken from the
+// portal's own schedule-type dropdown at the top of the page — its
+// SELECTED option reads e.g. "IET & MET 3rd Semester I". The ASP.NET id
+// is stable on the live portal but not guaranteed, so fall back to any
+// select whose selected option names a semester cohort. Option text can
+// contain embedded newlines ("Architecture 1st Semester\n I" in the real
+// markup), so collapse all whitespace. Returns null when no such select
+// exists (e.g. the offline test page without a fixture dropdown).
+function extractCohortName() {
+  const looksLikeCohort = text => /\b\d{1,2}(?:st|nd|rd|th)?\s+Semester\b/i.test(text);
+  const clean = text => String(text || '').replace(/\s+/g, ' ').trim();
+  const selectedText = s => (s.selectedIndex >= 0 ? s.options[s.selectedIndex].textContent : '');
+
+  const byId = document.getElementById('ContentPlaceHolderright_ContentPlaceHoldercontent_scdTpLst');
+  const candidates = byId ? [byId] : Array.from(document.querySelectorAll('select'));
+  const select = candidates.find(s => looksLikeCohort(selectedText(s)));
+  if (!select) return null;
+
+  return clean(selectedText(select));
+}
+
 function parseGUCMatrixDOM() {
   try {
     const tables = Array.from(document.querySelectorAll('table'));
@@ -292,6 +355,7 @@ function parseGUCMatrixDOM() {
     return {
       success: true,
       data: {
+        cohortName: extractCohortName(),
         slots: extractedSlots,
         availableGroups: {
           tutorials: Array.from(discoveredGroups.tutorials).sort(),
@@ -372,9 +436,13 @@ function extractTokensAndRegister(text, day, period, colspan, slotsArray, groups
   // course code. Without this, the German dropdown comes up empty on real
   // markup even though every German row parsed fine. (Electives have not
   // been validated against real portal markup yet — see README — so their
-  // registration stays token-based.)
-  if (GERMAN_LEVELS.includes(courseCode)) {
-    groupsTracker.german.add(courseCode);
+  // registration stays token-based.) The comparison goes through
+  // normalizeCourseCode because the portal renders the code with a space
+  // ("DE 303") in the same style as "ELCT 708", and a raw includes() on
+  // the spaced form never matched — which left German rows reachable only
+  // via their tutorial tag (the "German picked up as a tutorial" bug).
+  if (GERMAN_LEVELS.includes(normalizeCourseCode(courseCode))) {
+    groupsTracker.german.add(normalizeCourseCode(courseCode));
   }
 
   slotsArray.push({
@@ -386,7 +454,7 @@ function extractTokensAndRegister(text, day, period, colspan, slotsArray, groups
     groups: classifiedTokens,
     group: chosenToken, // primary/most-specific token, for quick display
     isCohort,
-    cohortMajor: isCohort ? inferMajorFromCourse(courseCode) : null,
+    cohortMajor: isCohort ? inferCohortMajor(text, courseCode) : null,
     rawText: text
   });
 }
@@ -395,7 +463,12 @@ function extractTokensAndRegister(text, day, period, colspan, slotsArray, groups
 // whatever is currently on the page and sends the result back.
 // Guarded so this same file can also be loaded on the offline test harness
 // page (tests/test-harness.html), which has no chrome.runtime API.
-if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+// The window flag makes re-injection safe: Force Re-scan programmatically
+// injects this file into GUC tabs opened before the last extension reload
+// (where the manifest injection never ran), and without the guard a tab
+// that ALREADY has the script would register a second listener.
+if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage && !window.__gucMatrixContentLoaded) {
+  window.__gucMatrixContentLoaded = true;
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'PARSE_GUC_SCHEDULE') {
       sendResponse(parseGUCMatrixDOM());
@@ -405,5 +478,5 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { parseGUCMatrixDOM, classifyGroupToken, extractTokensAndRegister };
+  module.exports = { parseGUCMatrixDOM, classifyGroupToken, extractTokensAndRegister, extractCohortName };
 }

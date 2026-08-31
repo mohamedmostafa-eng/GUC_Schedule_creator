@@ -18,38 +18,16 @@
  */
 
 // GUC's academic week runs Saturday through Thursday. Saturday must stay
-// first — both for the rendered grid columns and for iCalendar export.
+// first — it defines the rendered grid's row order and the PDF export.
 const WORKING_DAYS = ['Saturday', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
-
-// Maps each working day to its RFC 5545 BYDAY code for .ics export.
-const ICS_DAY_MAP = {
-  Saturday: 'SA',
-  Sunday: 'SU',
-  Monday: 'MO',
-  Tuesday: 'TU',
-  Wednesday: 'WE',
-  Thursday: 'TH'
-};
-
-// JS Date.getDay() index (0 = Sunday) for each working day, used to compute
-// the next real calendar occurrence of a weekday for .ics export anchoring.
-const JS_DAY_INDEX = {
-  Sunday: 0,
-  Monday: 1,
-  Tuesday: 2,
-  Wednesday: 3,
-  Thursday: 4,
-  Friday: 5,
-  Saturday: 6
-};
 
 // GUC's five class periods and their exact bell times.
 const PERIODS = [
-  { id: 1, label: '1st Period', start: '08:15', end: '09:45', icsStart: '081500', icsEnd: '094500' },
-  { id: 2, label: '2nd Period', start: '10:00', end: '11:30', icsStart: '100000', icsEnd: '113000' },
-  { id: 3, label: '3rd Period', start: '11:45', end: '13:15', icsStart: '114500', icsEnd: '131500' },
-  { id: 4, label: '4th Period', start: '13:45', end: '15:15', icsStart: '134500', icsEnd: '151500' },
-  { id: 5, label: '5th Period', start: '15:45', end: '17:15', icsStart: '154500', icsEnd: '171500' }
+  { id: 1, label: '1st Period', start: '08:15', end: '09:45' },
+  { id: 2, label: '2nd Period', start: '10:00', end: '11:30' },
+  { id: 3, label: '3rd Period', start: '11:45', end: '13:15' },
+  { id: 4, label: '4th Period', start: '13:45', end: '15:15' },
+  { id: 5, label: '5th Period', start: '15:45', end: '17:15' }
 ];
 
 // German has exactly 4 levels at GUC. The semester digit moves together
@@ -61,6 +39,15 @@ const GERMAN_LEVELS = ['DE101', 'DE202', 'DE303', 'DE404'];
 
 // Electives/Humanities have exactly 5 tracks at GUC.
 const ELECTIVE_TRACKS = ['AE', 'AS', 'SM', 'CPS', 'RPW'];
+
+// Canonical form for course-code comparisons. The portal renders codes both
+// compact ("DE303") and space-separated ("ELCT 708", "PHYSt 301"), so
+// content.js (German-level registration) and popup.js (German filter match)
+// must normalize BOTH sides through this helper — a raw string comparison
+// is what made spaced German rows invisible to the German dropdown.
+function normalizeCourseCode(code) {
+  return String(code || '').replace(/\s+/g, '').toUpperCase();
+}
 
 // Faculty/major abbreviation dictionary for the group-code translator.
 // Not an exhaustive/official GUC list — compiled from commonly seen major
@@ -104,12 +91,11 @@ function groupTokenKey(tok) {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     WORKING_DAYS,
-    ICS_DAY_MAP,
-    JS_DAY_INDEX,
     PERIODS,
     GERMAN_LEVELS,
     ELECTIVE_TRACKS,
     MAJOR_NAMES,
-    groupTokenKey
+    groupTokenKey,
+    normalizeCourseCode
   };
 }

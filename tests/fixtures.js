@@ -21,8 +21,24 @@
  * nine stacked DE303 tutorial rows (one per group, each with its own room
  * — the shape that decides whether group filtering isolates the right
  * row), and one cohort lecture row.
+ *
+ * The schedule-type dropdown above the table is transcribed from the real
+ * portal too (ASP.NET id, placeholder option, embedded-newline option
+ * text, entity-encoded ampersand in the SELECTED cohort option) — it is
+ * where the cohort name shown in the popup header and PDF title comes
+ * from.
  */
 const GUC_TEST_FIXTURE_HTML = `
+<!-- REAL-PORTAL control: the schedule-type dropdown whose SELECTED option
+     names the cohort currently displayed ("IET & MET 3rd Semester I"). -->
+<select name="ctl00$ctl00$ContentPlaceHolderright$ContentPlaceHoldercontent$scdTpLst" id="ContentPlaceHolderright_ContentPlaceHoldercontent_scdTpLst" class="form-control">
+  <option value="Select .........">Select .........</option>
+  <option value="10266">Architecture 1st Semester
+ I</option>
+  <option value="10244">Mechatronics 3rd Semester I</option>
+  <option selected="selected" value="10192">IET &amp; MET 3rd Semester I</option>
+  <option value="10249">Mechatronics 7th Semester I</option>
+</select>
 <table class="mock" id="mockScheduleTable">
   <tr>
     <th>Day</th>
@@ -38,19 +54,57 @@ const GUC_TEST_FIXTURE_HTML = `
     <td>Free</td>
     <td>3 IET-8 &amp; MET11 SM T011 C4.321</td>
     <td>DE101 T001 B1.101</td>
-    <td>Free</td>
+    <td>
+      <!-- REAL-PORTAL cell: cross-listed cohort lecture. Course <td> pasted
+           verbatim (spaced code, background image, title attribute); tag
+           column carries the MET cohort tag WITHOUT a T-number. -->
+      <table class="nested">
+        <tr>
+          <td background="../../../Images/External/Reports/half.gif" align="center" title="Electric Machines"><font face="Arial, Helvetica, sans-serif" size="1">ELCT 708
+                            Lecture
+                        </font>
+                    </td>
+          <td width="40"><font face="Arial, Helvetica, sans-serif" size="1">H7</font></td>
+          <td width="20"><font face="Arial, Helvetica, sans-serif" size="1">3 MET III 3G</font></td>
+        </tr>
+      </table>
+    </td>
   </tr>
   <tr>
     <td>Sunday</td>
     <td>CSEN401 T011 Tutorial C3.201</td>
     <td>MATH301 Lecture H5</td>
-    <td>Free</td>
+    <td>
+      <!-- REAL-PORTAL cell: lecture with a mixed-case course code
+           ("PHYSt 301" pasted verbatim) — previously parsed as GENERAL. -->
+      <table class="nested">
+        <tr>
+          <td><font face="Arial, Helvetica, sans-serif" size="1">PHYSt 301
+                            Lecture
+                        </font>
+                    </td>
+          <td width="40"><font face="Arial, Helvetica, sans-serif" size="1">H3</font></td>
+          <td width="20"><font face="Arial, Helvetica, sans-serif" size="1">3 MET III 3G</font></td>
+        </tr>
+      </table>
+    </td>
     <td>DE202 T021 B2.104</td>
     <td>AE 301 T041 B3.110</td>
   </tr>
   <tr>
     <td>Monday</td>
-    <td>Free</td>
+    <td>
+      <!-- REAL-PORTAL cell: German tutorial row with a SPACE-separated
+           course code ("DE 303", same portal style as "ELCT 708") — the
+           shape that broke German registration and badge classification. -->
+      <table class="nested">
+        <tr>
+          <td width="55"><font face="Arial, Helvetica, sans-serif" size="1">DE 303 Tut</font></td>
+          <td width="40"><font face="Arial, Helvetica, sans-serif" size="1">C2.105</font></td>
+          <td width="20"><font face="Arial, Helvetica, sans-serif" size="1">3 MET III 3G T016</font></td>
+        </tr>
+      </table>
+    </td>
     <td>CSEN401 P011 Lab C4.321</td>
     <td>CPS402 T031 H8</td>
     <td>DE303 T012 B1.102</td>
@@ -66,7 +120,10 @@ const GUC_TEST_FIXTURE_HTML = `
     </td>
     <td>DE404 T081 B1.103</td>
     <td>RPW 110 T061 B3.112</td>
-    <td>Free</td>
+    <!-- SYNTHETIC service lecture filed inside a CSEN-tagged row: the PHYS
+         prefix is not a faculty code, so it must stay visible to every
+         group even though the row tag says CSEN. -->
+    <td>PHYS 201 Lecture H2 3 CSEN III 3G</td>
   </tr>
   <tr>
     <td>Wednesday</td>

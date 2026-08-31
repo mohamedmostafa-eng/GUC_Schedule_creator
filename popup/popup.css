@@ -118,6 +118,18 @@ body {
 .status-ready { background: #064e3b; color: #6ee7b7; }
 .status-error { background: #7f1d1d; color: #fca5a5; }
 
+.cohort-chip {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #7dd3fc;
+  margin-top: 2px;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .actions .btn {
   display: inline-flex;
   align-items: center;
@@ -343,9 +355,12 @@ body {
   justify-content: space-between;
 }
 
-/* When a cell holds only one card, let it fill the cell like before. */
+/* When a cell holds only one card, let it fill the cell like before, but
+   group its two text lines at the center — space-between pinned them to
+   the top and bottom edges of the 130px cell, leaving a hollow middle. */
 .matrix-slot:not(.slot-free) .slot-card:only-child {
   height: 100%;
+  justify-content: center;
 }
 
 .card-course {
@@ -466,49 +481,4 @@ body {
 
 .btn-link:hover {
   color: #7dd3fc;
-}
-
-/* --------------------------------------------------------------------------
-   Print & PDF Export Styling
-   -------------------------------------------------------------------------- */
-@media print {
-  body {
-    width: 100%;
-    background: #fff;
-    color: #000;
-    padding: 0;
-  }
-
-  .header, .filter-bar, .footer {
-    display: none !important;
-  }
-
-  .timetable-wrapper {
-    border: none;
-    padding: 0;
-  }
-
-  .matrix-grid {
-    gap: 2px;
-  }
-
-  .grid-cell {
-    border: 1px solid #ccc;
-  }
-
-  .header-cell, .day-header-cell {
-    background: #f0f0f0 !important;
-    color: #000 !important;
-  }
-
-  .slot-card {
-    background: #fff !important;
-    border-left: 4px solid #000 !important;
-    color: #000 !important;
-  }
-
-  .card-room {
-    background: none;
-    border: 1px solid #999;
-  }
 }
