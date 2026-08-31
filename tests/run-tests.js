@@ -116,6 +116,10 @@ function runGucParserTests() {
   fixtureSelect.id = savedSelectId;
   fixtureSelect.selectedIndex = savedSelectIndex;
 
+  // ---------- faculty name dictionary ----------
+  assert(MAJOR_NAMES.MET === 'Media Engineering & Technology' && MAJOR_NAMES.IET === 'Information Engineering & Technology',
+    'MAJOR NAMES: MET/IET decode to Media / Information Engineering & Technology (previously misregistered as Mechanical/Industrial)');
+
   // ---------- PDF export document structure ----------
   const fakeJpeg = new Uint8Array([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x01]);
   const pdfBytes = buildPdfFromJpeg(fakeJpeg, 1684, 1190, 842, 595);

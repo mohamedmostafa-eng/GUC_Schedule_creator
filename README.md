@@ -20,6 +20,10 @@ analytics, and no network request of any kind built into this extension.
   to slip in through the "lectures always show" rule — they're
   dropdown-filtered classes, not cohort lectures, and they stay out until
   you pick their German level or elective track.
+- **v3.1.1 — correct faculty names.** The group-code translator now reads
+  `MET` as *Media Engineering & Technology* and `IET` as *Information
+  Engineering & Technology* (they were misregistered as Mechanical /
+  Industrial).
 
 ---
 

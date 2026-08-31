@@ -55,8 +55,8 @@ function normalizeCourseCode(code) {
 // number), just without a friendly major name. Extend as needed.
 const MAJOR_NAMES = {
   MCTR: 'Mechatronics Engineering',
-  MET: 'Mechanical Engineering',
-  IET: 'Industrial Engineering',
+  MET: 'Media Engineering & Technology',
+  IET: 'Information Engineering & Technology',
   CSEN: 'Computer Science Engineering',
   ENME: 'Energy Engineering',
   ELCT: 'Electronics Engineering',
@@ -65,7 +65,6 @@ const MAJOR_NAMES = {
   BI: 'Biotechnology',
   PHRM: 'Pharmacy',
   MGT: 'Management',
-  MEDIA: 'Media Engineering & Technology',
   DMET: 'Design & Production Engineering'
 };
 
