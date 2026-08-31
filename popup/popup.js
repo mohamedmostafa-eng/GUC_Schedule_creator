@@ -343,7 +343,14 @@ function computeFilteredSlots(rawSlots, selection) {
     // unconditionally; the dropdowns only filter tutorials/German/
     // electives.
     if (slot.isCohort) return true;
-    if ((slot.type || '').toLowerCase().includes('lecture')) return true;
+    // The type-Lecture guard must not swallow German/elective rows that
+    // happen to sit in a hall room (e.g. "CPS402 T031 H8" is typed Lecture
+    // by the H-room heuristic) — those are dropdown-filtered classes, not
+    // cohort lectures. With nothing selected they stay out of the grid and
+    // the generated PDF (v3.1).
+    const primaryCategory = slot.group && slot.group.category;
+    if (primaryCategory !== 'german' && primaryCategory !== 'elective' &&
+        (slot.type || '').toLowerCase().includes('lecture')) return true;
 
     const groups = slot.groups || [];
 

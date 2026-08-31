@@ -12,6 +12,17 @@ analytics, and no network request of any kind built into this extension.
 
 ---
 
+## What's new in v3.1
+
+- **A clean empty schedule.** With nothing chosen in the dropdowns, the
+  grid and the generated PDF now show *only* your cohort lectures. German
+  and elective rows that sit in a hall room (e.g. `CPS402 T031 H8`) used
+  to slip in through the "lectures always show" rule — they're
+  dropdown-filtered classes, not cohort lectures, and they stay out until
+  you pick their German level or elective track.
+
+---
+
 ## What's new in v2.1.1
 
 - **Lectures can no longer disappear.** Previous versions guessed which
@@ -288,6 +299,8 @@ fuzzy. A few edge cases to be aware of:
   lecture on your cohort's page is always shown — so on a page like
   *IET & MET* you may see a lecture only the other major attends. Ignore
   it; your tutorial/German/elective rows still filter exactly as before.
+  *(The one exception since v3.1: German/elective rows that happen to sit
+  in a hall room are dropdown-filtered classes, not cohort lectures.)*
 - **The faculty/major name dictionary in `shared-constants.js`
   (`MAJOR_NAMES`) is not exhaustive.** Unrecognized major codes still
   decode structurally (semester, group number) in the translator, just

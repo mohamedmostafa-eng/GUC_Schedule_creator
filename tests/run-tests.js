@@ -151,6 +151,11 @@ function runGucParserTests() {
     .map(s => s.course + '@' + s.day + s.period).sort().join('|');
   assert(lectureSet(noSel).length > 0 && lectureSet(tutOnly) === lectureSet(noSel),
     'FILTER: selecting a tutorial NEVER removes a lecture — the lecture set is identical with and without a selection ("choose a tut and lecs get removed")');
+  assert(!noSel.some(s => s.group && (s.group.category === 'german' || s.group.category === 'elective')),
+    'FILTER: with nothing chosen, no German/elective row leaks into the view/PDF (H-room elective rows no longer ride the lecture guard)');
+  const electiveSel = computeFilteredSlots(slots, { tutorial: '', german: '', elective: 'CPS031' });
+  assert(electiveSel.some(s => s.course === 'CPS402'),
+    'FILTER: choosing the elective track still surfaces its H-room row (CPS402)');
   assert(tutOnly.some(s => s.course === 'ELCT 708'),
     'FILTER: cross-listed lecture (ELCT 708 tagged for the MET cohort) is visible to the MET student — prefix-only inference used to hide it');
   assert(tutOnly.some(s => s.course === 'PHYST 301'),
