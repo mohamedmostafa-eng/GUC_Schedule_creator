@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "GUC Dynamic Schedule Matrix",
+  "version": "2.0.0",
+  "description": "Parses and visualizes GUC semester schedules into a personalized, color-coded timetable with one-click calendar export.",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "*://apps.guc.edu.eg/student_ext/*"
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "GUC Timetable Matrix",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://apps.guc.edu.eg/student_ext/*"
+      ],
+      "js": [
+        "shared-constants.js",
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

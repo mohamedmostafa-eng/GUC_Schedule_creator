@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>GUC Parser &amp; Filter Test Harness</title>
+<style>
+  body { font-family: sans-serif; background: #0b0f19; color: #f9fafb; padding: 20px; }
+  h1 { font-size: 18px; }
+  #runBtn { padding: 8px 14px; background: #b91c1c; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: 700; margin: 12px 0; }
+  #assertions { white-space: pre-wrap; background: #111827; padding: 12px; border-radius: 8px; font-size: 12px; margin-bottom: 12px; }
+  #output { white-space: pre-wrap; background: #111827; padding: 12px; border-radius: 8px; font-size: 12px; max-height: 500px; overflow: auto; }
+  #fixtureRoot table { border-collapse: collapse; }
+  #fixtureRoot td, #fixtureRoot th { border: 1px solid #4b5563; padding: 6px 10px; font-size: 12px; vertical-align: top; }
+  .pass { color: #6ee7b7; }
+  .fail { color: #fca5a5; font-weight: 700; }
+  /* popup.js is loaded here too so its REAL filter engine is exercised;
+     its element IDs must exist for its own DOMContentLoaded init. */
+  .popup-stubs { display: none; }
+</style>
+</head>
+<body>
+  <h1>GUC Schedule Matrix — Parser &amp; Filter Test</h1>
+  <p>This page loads the real <code>content.js</code> (DOM extraction) and the real
+  <code>popup/popup.js</code> (filter engine), then runs the shared suite in
+  <code>tests/run-tests.js</code> against the fixture in <code>tests/fixtures.js</code>:
+  synthetic machinery fixtures (nested tables, rowspan/colspan, all German levels and
+  elective tracks) plus cells transcribed from real portal outerHTML (per-group stacked
+  German tutorial rows, space-separated 5-part group tags, &lt;font&gt; markup and
+  injected svgjs extension noise). The same suite runs headless via
+  <code>node tests/node-runner.js</code>.</p>
+  <button id="runBtn">Run Parser &amp; Filter Tests</button>
+  <div id="assertions">Click the button above to run the tests.</div>
+  <pre id="output"></pre>
+
+  <!-- Fixture markup is injected here by run-tests.js (single source of
+       truth shared with the Node runner). -->
+  <div id="fixtureRoot"></div>
+
+  <!-- Minimal stand-ins for the element IDs popup.js grabs at load time,
+       so its init path can't crash on this page. -->
+  <div class="popup-stubs">
+    <span id="statusIndicator"></span>
+    <span id="errorText"></span>
+    <div id="errorBanner"><button id="openScheduleBtn"></button></div>
+    <select id="tutSelect"></select>
+    <span id="tutTranslator"></span>
+    <select id="deSelect"></select>
+    <select id="smSelect"></select>
+    <button id="exportIcsBtn"></button>
+    <button id="refreshBtn"></button>
+    <div id="gridMatrix"></div>
+    <div id="emptyState"></div>
+    <span id="syncTimestamp"></span>
+  </div>
+
+  <script>
+    // Minimal chrome.* stand-in so popup.js (guarded for the test harness)
+    // initializes on this page exactly as it does in the extension popup.
+    window.chrome = {
+      storage: { local: { get: (keys, cb) => cb({}), set: () => {} } },
+      tabs: { query: async () => [], sendMessage: () => {}, create: () => {} },
+      runtime: { lastError: null }
+    };
+  </script>
+  <script src="../shared-constants.js"></script>
+  <script src="../content.js"></script>
+  <script src="../popup/popup.js"></script>
+  <script src="fixtures.js"></script>
+  <script src="run-tests.js"></script>
+  <script>
+    document.getElementById('runBtn').addEventListener('click', () => {
+      const { results, parseResult } = runGucParserTests();
+      document.getElementById('output').textContent = JSON.stringify(parseResult, null, 2);
+
+      const html = results.map(r =>
+        `<div class="${r.pass ? 'pass' : 'fail'}">${r.pass ? 'PASS' : 'FAIL'} — ${r.label}</div>`
+      ).join('');
+      const failCount = results.filter(r => !r.pass).length;
+      document.getElementById('assertions').innerHTML =
+        `<strong>${results.length - failCount}/${results.length} assertions passed</strong><br>` + html;
+    });
+  </script>
+</body>
+</html>

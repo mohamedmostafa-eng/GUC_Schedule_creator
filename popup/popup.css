@@ -1,0 +1,514 @@
+/* --------------------------------------------------------------------------
+   Design Tokens & Color Hierarchy
+   -------------------------------------------------------------------------- */
+:root {
+  --bg-app: #0b0f19;
+  --bg-surface: #111827;
+  --bg-surface-elevated: #1f2937;
+  --bg-surface-hover: #374151;
+
+  --border-subtle: #1f2937;
+  --border-muted: #374151;
+  --border-strong: #4b5563;
+
+  --text-primary: #f9fafb;
+  --text-secondary: #9ca3af;
+  --text-muted: #6b7280;
+
+  /* Slot Accent Themes */
+  --slot-lecture-bg: #1e293b;
+  --slot-lecture-border: #38bdf8;
+  --slot-lecture-text: #bae6fd;
+
+  --slot-tut-bg: #291b0f;
+  --slot-tut-border: #f59e0b;
+  --slot-tut-text: #fde68a;
+
+  --slot-lab-bg: #062e22;
+  --slot-lab-border: #10b981;
+  --slot-lab-text: #a7f3d0;
+
+  --slot-german-bg: #23153c;
+  --slot-german-border: #a855f7;
+  --slot-german-text: #e9d5ff;
+
+  --slot-elective-bg: #350d1d;
+  --slot-elective-border: #f43f5e;
+  --slot-elective-text: #fecdd3;
+
+  --slot-free-bg: #11182780;
+  --slot-free-border: #1f2937;
+  --slot-free-text: #374151;
+}
+
+/* --------------------------------------------------------------------------
+   App Container & Base Layout
+   -------------------------------------------------------------------------- */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  width: 900px;
+  min-height: 580px;
+  padding: 16px;
+  user-select: none;
+  overflow-x: hidden;
+}
+
+.app-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* --------------------------------------------------------------------------
+   Header Bar & Status
+   -------------------------------------------------------------------------- */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 10px 16px;
+}
+
+.branding {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo-icon {
+  background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+  color: #fff;
+  font-weight: 900;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.title-wrap h1 {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+
+.status-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-top: 2px;
+  text-transform: uppercase;
+}
+
+.status-loading { background: #374151; color: #d1d5db; }
+.status-scanning { background: #1e3a8a; color: #93c5fd; }
+.status-ready { background: #064e3b; color: #6ee7b7; }
+.status-error { background: #7f1d1d; color: #fca5a5; }
+
+.actions .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border-muted);
+  background: var(--bg-surface-elevated);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+}
+
+.actions .btn:hover:not(:disabled) {
+  background: var(--bg-surface-hover);
+  border-color: var(--border-strong);
+}
+
+.actions .btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* --------------------------------------------------------------------------
+   Error Banner
+   -------------------------------------------------------------------------- */
+.error-banner {
+  background: #3b1414;
+  border: 1px solid #7f1d1d;
+  color: #fca5a5;
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 8px 12px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.error-link {
+  color: #fca5a5;
+  font-weight: 700;
+}
+
+.error-link:hover {
+  color: #fecaca;
+}
+
+/* --------------------------------------------------------------------------
+   Filter Bar
+   -------------------------------------------------------------------------- */
+.filter-bar {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+
+.select-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.select-group label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.translator-subtitle {
+  font-size: 10.5px;
+  color: #7dd3fc;
+  font-weight: 600;
+  line-height: 1.3;
+  margin-top: 2px;
+}
+
+.select-group select {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-muted);
+  color: var(--text-primary);
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.select-group select:focus {
+  border-color: #38bdf8;
+}
+
+.select-group select:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* --------------------------------------------------------------------------
+   5x5 Timetable Grid Matrix
+   -------------------------------------------------------------------------- */
+.timetable-wrapper {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 12px;
+  min-height: 420px;
+}
+
+.matrix-grid {
+  display: grid;
+  grid-template-columns: 85px repeat(5, 1fr);
+  gap: 6px;
+}
+
+.grid-cell {
+  border-radius: 6px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  position: relative;
+  min-height: 64px;
+}
+
+/* Actual timetable slot cells get a FIXED height (not min-height) with
+   internal scrolling. Previously these only had a min-height, so 3+
+   colliding slots (e.g. bi-weekly alternating labs) grew the cell and
+   bled into the row below instead of staying contained. */
+.matrix-slot {
+  height: 130px;
+  min-height: 130px;
+  justify-content: flex-start;
+  overflow-y: auto;
+  gap: 4px;
+}
+
+.matrix-slot::-webkit-scrollbar {
+  width: 4px;
+}
+
+.matrix-slot::-webkit-scrollbar-thumb {
+  background: var(--border-muted);
+  border-radius: 2px;
+}
+
+.matrix-slot::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Headers */
+.header-cell {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  min-height: 42px;
+  text-align: center;
+  align-items: center;
+  padding: 4px;
+}
+
+.header-cell strong {
+  font-size: 11px;
+  color: var(--text-primary);
+}
+
+.header-cell .period-time {
+  font-size: 9px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.corner-cell {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.day-header-cell {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  align-items: center;
+  justify-content: center;
+}
+
+/* Free Slots */
+.slot-free {
+  background: var(--slot-free-bg);
+  border: 1px dashed var(--slot-free-border);
+  align-items: center;
+  justify-content: center;
+}
+
+.free-indicator {
+  color: var(--slot-free-text);
+  font-size: 14px;
+  font-weight: bold;
+}
+
+/* Slot Cards */
+.slot-card {
+  width: 100%;
+  flex-shrink: 0;
+  padding: 6px 8px;
+  border-radius: 5px;
+  border-left: 3.5px solid transparent;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+/* When a cell holds only one card, let it fill the cell like before. */
+.matrix-slot:not(.slot-free) .slot-card:only-child {
+  height: 100%;
+}
+
+.card-course {
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.card-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 4px;
+  font-size: 10px;
+}
+
+.card-type {
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+.card-room {
+  font-weight: 700;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+/* Badge Color Themes */
+.badge-lecture {
+  background-color: var(--slot-lecture-bg);
+  border-left-color: var(--slot-lecture-border);
+  color: var(--slot-lecture-text);
+}
+
+.badge-tut {
+  background-color: var(--slot-tut-bg);
+  border-left-color: var(--slot-tut-border);
+  color: var(--slot-tut-text);
+}
+
+.badge-lab {
+  background-color: var(--slot-lab-bg);
+  border-left-color: var(--slot-lab-border);
+  color: var(--slot-lab-text);
+}
+
+.badge-german {
+  background-color: var(--slot-german-bg);
+  border-left-color: var(--slot-german-border);
+  color: var(--slot-german-text);
+}
+
+.badge-elective {
+  background-color: var(--slot-elective-bg);
+  border-left-color: var(--slot-elective-border);
+  color: var(--slot-elective-text);
+}
+
+/* --------------------------------------------------------------------------
+   Empty State & Footer
+   -------------------------------------------------------------------------- */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 380px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.empty-icon {
+  font-size: 36px;
+  margin-bottom: 12px;
+}
+
+.empty-state h3 {
+  font-size: 15px;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.empty-state p {
+  font-size: 12px;
+  max-width: 320px;
+  line-height: 1.5;
+}
+
+.empty-state code {
+  background: var(--bg-surface-elevated);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #38bdf8;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 0 4px;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: #38bdf8;
+  font-size: 11px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.btn-link:hover {
+  color: #7dd3fc;
+}
+
+/* --------------------------------------------------------------------------
+   Print & PDF Export Styling
+   -------------------------------------------------------------------------- */
+@media print {
+  body {
+    width: 100%;
+    background: #fff;
+    color: #000;
+    padding: 0;
+  }
+
+  .header, .filter-bar, .footer {
+    display: none !important;
+  }
+
+  .timetable-wrapper {
+    border: none;
+    padding: 0;
+  }
+
+  .matrix-grid {
+    gap: 2px;
+  }
+
+  .grid-cell {
+    border: 1px solid #ccc;
+  }
+
+  .header-cell, .day-header-cell {
+    background: #f0f0f0 !important;
+    color: #000 !important;
+  }
+
+  .slot-card {
+    background: #fff !important;
+    border-left: 4px solid #000 !important;
+    color: #000 !important;
+  }
+
+  .card-room {
+    background: none;
+    border: 1px solid #999;
+  }
+}
