@@ -143,8 +143,14 @@ function runGucParserTests() {
     'FILTER: tutorial group alone still pulls in the German row tagged with it');
   assert(tutOnly.some(s => s.course === 'MATH301'),
     'FILTER: service-course lecture (MATH301 — course prefix is not a faculty code) is NOT hidden from a MET-group student');
-  assert(!tutOnly.some(s => s.course === 'CSEN401' && s.type === 'Lecture' && s.day === 'Saturday'),
-    'FILTER: another faculty\'s cohort lecture (CSEN401 vs selected MET group) is still excluded');
+  assert(tutOnly.some(s => s.course === 'CSEN401' && s.type === 'Lecture' && s.day === 'Saturday'),
+    'FILTER: another faculty\'s cohort lecture (CSEN401 vs selected MET group) is STILL SHOWN — major-guessing hid real lectures, so lectures never vanish now');
+  const noSel = filter('', '');
+  const lectureSet = list => list
+    .filter(s => (s.type || '').toLowerCase().includes('lecture'))
+    .map(s => s.course + '@' + s.day + s.period).sort().join('|');
+  assert(lectureSet(noSel).length > 0 && lectureSet(tutOnly) === lectureSet(noSel),
+    'FILTER: selecting a tutorial NEVER removes a lecture — the lecture set is identical with and without a selection ("choose a tut and lecs get removed")');
   assert(tutOnly.some(s => s.course === 'ELCT 708'),
     'FILTER: cross-listed lecture (ELCT 708 tagged for the MET cohort) is visible to the MET student — prefix-only inference used to hide it');
   assert(tutOnly.some(s => s.course === 'PHYST 301'),

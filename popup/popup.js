@@ -331,17 +331,19 @@ function computeFilteredSlots(rawSlots, selection) {
   }
 
   return rawSlots.filter(slot => {
-    // 1. Cohort lectures apply to everyone, UNLESS both the lecture's
-    // course-code prefix and the selected group's major are real faculty
-    // codes (MAJOR_NAMES) that differ. A raw prefix comparison alone would
-    // hide service courses from everyone once real portal tags make the
-    // selected major non-null — "MATH" !== "MET" is not evidence that a
-    // MATH301 lecture isn't for MET students.
-    if (slot.isCohort) {
-      if (!selectedTutorialParsed || !selectedTutorialParsed.major || !slot.cohortMajor) return true;
-      if (!MAJOR_NAMES[slot.cohortMajor] || !MAJOR_NAMES[selectedTutorialParsed.major]) return true;
-      return slot.cohortMajor === selectedTutorialParsed.major;
-    }
+    // 1. Lectures ALWAYS show, regardless of selections. Three successive
+    // rounds of "which major is this lecture for" guessing (course prefix,
+    // row tag, then both) each still hid lectures the student actually
+    // attends on the real portal — untagged faculty-prefix rows, cross-
+    // listed rows filed under another major, combined cohorts like
+    // "IET & MET" — and the symptom flipped around depending on which
+    // tutorial was selected ("lectures removed when I choose a tut").
+    // Missing a class is far worse than seeing a cohort-mate's lecture,
+    // so cohort lectures (and anything else typed Lecture) pass
+    // unconditionally; the dropdowns only filter tutorials/German/
+    // electives.
+    if (slot.isCohort) return true;
+    if ((slot.type || '').toLowerCase().includes('lecture')) return true;
 
     const groups = slot.groups || [];
 

@@ -12,6 +12,23 @@ analytics, and no network request of any kind built into this extension.
 
 ---
 
+## What's new in v2.1.1
+
+- **Lectures can no longer disappear.** Previous versions guessed which
+  major a cohort lecture "belongs to" (course-code prefix, row faculty
+  tag, then both) and hid it from students of other majors. On the real
+  portal — combined cohorts like *IET & MET*, cross-listed rows, untagged
+  rows — that guess kept hiding lectures you actually attend, and which
+  lectures vanished changed depending on which tutorial you had
+  selected. The guessing is gone: every lecture on your cohort's page
+  now stays visible no matter what you pick in the dropdowns; the
+  dropdowns only filter your tutorial/German/elective rows. The tradeoff
+  is deliberate — on a combined-cohort page you may also see a lecture
+  that only the other major attends (clutter you can ignore) instead of
+  silently missing one of your own classes.
+
+---
+
 ## What's new in v2.1.0
 
 - **Your cohort's name, front and center.** The popup now reads the
@@ -108,7 +125,8 @@ analytics, and no network request of any kind built into this extension.
 - **Cohort lectures no longer bleed across majors.** A wide, ungrouped
   lecture cell is now matched against the major implied by your selected
   tutorial/practical group, so another department's cross-listed lecture
-  doesn't show up in your grid.
+  doesn't show up in your grid. *(Reverted in v2.1.1 — the major matching
+  hid real lectures; see above.)*
 - **No more overflowing cells.** When 3+ classes collide in one time slot
   (e.g. alternating labs), the cell now scrolls internally at a fixed
   height instead of expanding and bleeding into the row below.
@@ -264,16 +282,12 @@ fuzzy. A few edge cases to be aware of:
   same stacked per-group layout as German, they'll need the same
   course-code registration treatment. Paste a real elective cell into
   `tests/fixtures.js` first.
-- **Cohort-lecture major matching is a heuristic.** When a cohort lecture
-  cell carries no explicit group tag, its target major is guessed from the
-  course code's letter prefix (e.g. `ELCT` from `ELCT 708`) — unless the
-  row itself carries a faculty tag (e.g. `3 MET III 3G`), which wins for
-  faculty-code prefixes. Prefixes that aren't known faculty codes (math,
-  physics, humanities service courses) are shown to every group. If your
-  faculty's course codes don't follow that pattern and the row carries no
-  tag, a cohort lecture might not get filtered the way you expect — it
-  will still be *shown*, just possibly alongside a lecture from a
-  different major.
+- **Lectures are never filtered, by design.** v2.1.1 removed the
+  major-matching heuristic because on combined-cohort pages, cross-listed
+  rows and untagged rows it hid lectures you actually attend. Every
+  lecture on your cohort's page is always shown — so on a page like
+  *IET & MET* you may see a lecture only the other major attends. Ignore
+  it; your tutorial/German/elective rows still filter exactly as before.
 - **The faculty/major name dictionary in `shared-constants.js`
   (`MAJOR_NAMES`) is not exhaustive.** Unrecognized major codes still
   decode structurally (semester, group number) in the translator, just
