@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy — GUC Timetable Matrix</title>
+  <style>
+    body { font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; max-width: 700px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #1a1a1a; }
+    h1 { font-size: 1.6em; }
+    h2 { font-size: 1.2em; margin-top: 1.8em; }
+    .updated { color: #666; font-size: 0.9em; }
+    ul { padding-left: 1.2em; }
+    code { background: #f2f2f2; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+  </style>
+</head>
+<body>
+  <h1>Privacy Policy — GUC Timetable Matrix</h1>
+  <p class="updated">Last updated: September 2026</p>
+
+  <p>
+    GUC Timetable Matrix is a browser extension that reads the schedule table on
+    <code>apps.guc.edu.eg/student_ext/</code> and displays it as a personalized,
+    color-coded timetable inside the extension's own popup.
+  </p>
+
+  <h2>What data the extension accesses</h2>
+  <p>
+    When you open the extension while viewing your GUC schedule page, it reads
+    the schedule table already visible on that page (course names, sections,
+    rooms, and time slots) so it can rebuild it as a filtered, color-coded grid.
+  </p>
+
+  <h2>What the extension does with that data</h2>
+  <ul>
+    <li>The data is parsed and rendered entirely inside your own browser.</li>
+    <li>Your dropdown selections and the last scanned schedule are cached locally using
+      <code>chrome.storage.local</code>, so the popup still works if you reopen it without
+      re-visiting the portal.</li>
+    <li>When you click "Export PDF," the PDF is generated locally in your browser and
+      downloaded directly to your computer.</li>
+  </ul>
+
+  <h2>What the extension does <em>not</em> do</h2>
+  <ul>
+    <li>It does not send any data to an external server.</li>
+    <li>It does not use analytics, tracking pixels, or third-party scripts of any kind.</li>
+    <li>It does not collect, store, or transmit your GUC login credentials — the
+      extension never sees your password; it only reads the schedule page after
+      you've logged in yourself.</li>
+    <li>It cannot read or run on any website other than
+      <code>apps.guc.edu.eg/student_ext/*</code>.</li>
+  </ul>
+
+  <h2>Data retention</h2>
+  <p>
+    Cached schedule data lives only in <code>chrome.storage.local</code>, which is local
+    to your own browser profile. It is automatically cleared if you remove the
+    extension, and is never synced to any account or server.
+  </p>
+
+  <h2>Contact</h2>
+  <p>
+    Questions about this policy can be raised via the project's GitHub repository:
+    <a href="https://github.com/mohamedmostafa-eng/GUC_Schedule_creator">
+      github.com/mohamedmostafa-eng/GUC_Schedule_creator
+    </a>.
+  </p>
+</body>
+</html>

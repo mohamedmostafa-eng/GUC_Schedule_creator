@@ -57,15 +57,17 @@ const MAJOR_NAMES = {
   MCTR: 'Mechatronics Engineering',
   MET: 'Media Engineering & Technology',
   IET: 'Information Engineering & Technology',
-  CSEN: 'Computer Science Engineering',
-  ENME: 'Energy Engineering',
+  CSEN: 'Computer Science & Engineering',
+  ENME: 'Engineering Mechanics',
   ELCT: 'Electronics Engineering',
   ARCH: 'Architecture Engineering',
   CIVIL: 'Civil Engineering',
   BI: 'Biotechnology',
   PHRM: 'Pharmacy',
   MGT: 'Management',
-  DMET: 'Design & Production Engineering'
+  BINF: 'Business Informatics',
+  EDPT: 'Engineering Design and Production Technology',
+  DMET: 'Digital Media Engineering and Technology'
 };
 
 /**

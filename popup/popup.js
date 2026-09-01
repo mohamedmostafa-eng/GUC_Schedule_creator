@@ -40,8 +40,47 @@ const elements = {
   refreshBtn: document.getElementById('refreshBtn'),
   gridMatrix: document.getElementById('gridMatrix'),
   emptyState: document.getElementById('emptyState'),
-  syncTimestamp: document.getElementById('syncTimestamp')
+  syncTimestamp: document.getElementById('syncTimestamp'),
+  toast: document.getElementById('toast'),
+  toastText: document.getElementById('toastText'),
+  filterBar: document.querySelector('.filter-bar'),
+  scanOverlay: document.getElementById('scanOverlay')
 };
+
+// Small inline icons shown inside the status badge. Kept as raw SVG
+// strings (instead of separate <use> refs) so the popup stays a single
+// self-contained bundle with no icon sprite to ship or load.
+const STATUS_ICONS = {
+  loading: '<svg class="status-icon" width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="9"></circle></svg>',
+  scanning: '<svg class="status-icon status-icon-spin" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M21 12a9 9 0 1 1-2.64-6.36"></path></svg>',
+  ready: '<svg class="status-icon" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>',
+  error: '<svg class="status-icon" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path></svg>'
+};
+
+// Small type icons shown next to each slot card's type label — a
+// colorblind-safe way to tell lecture/tutorial/lab/German/elective apart
+// beyond just the badge color.
+const TYPE_ICONS = {
+  lecture: '<svg class="type-icon" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>',
+  tut: '<svg class="type-icon" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>',
+  lab: '<svg class="type-icon" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 2v6.5L4 19a2 2 0 0 0 2 3h12a2 2 0 0 0 2-3l-5-10.5V2"></path><path d="M9 2h6"></path></svg>',
+  german: '<svg class="type-icon" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="9"></circle><path d="M8 15s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01"></path></svg>',
+  elective: '<svg class="type-icon" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2l2.7 6.6L21 9.3l-5 4.4 1.5 7.1L12 17l-5.5 3.8L8 13.7l-5-4.4 6.3-0.7z"></path></svg>'
+};
+
+let toastHideTimer = null;
+
+// Shows a small transient confirmation at the bottom of the popup, e.g.
+// after a PDF export completes. Auto-dismisses after `duration` ms.
+function showToast(message, duration = 3000) {
+  if (!elements.toast) return;
+  clearTimeout(toastHideTimer);
+  elements.toastText.textContent = message;
+  elements.toast.classList.add('toast-visible');
+  toastHideTimer = setTimeout(() => {
+    elements.toast.classList.remove('toast-visible');
+  }, duration);
+}
 
 // Application Initialization
 document.addEventListener('DOMContentLoaded', async () => {
@@ -70,7 +109,11 @@ function attachEventListeners() {
     renderSchedule();
   });
 
-  elements.exportBtn.addEventListener('click', generateAndDownloadPDF);
+  elements.exportBtn.addEventListener('click', () => {
+    elements.exportBtn.classList.add('btn-flash');
+    setTimeout(() => elements.exportBtn.classList.remove('btn-flash'), 220);
+    generateAndDownloadPDF();
+  });
   elements.refreshBtn.addEventListener('click', () => initScheduleScan(true));
   elements.openScheduleBtn.addEventListener('click', () => {
     chrome.tabs.create({ url: GUC_SCHEDULE_URL });
@@ -204,7 +247,11 @@ function sendTabMessage(tabId, message) {
 
 function updateStatus(type, message) {
   elements.statusBadge.className = `status-badge status-${type}`;
-  elements.statusBadge.textContent = message;
+  elements.statusBadge.innerHTML = `${STATUS_ICONS[type] || ''}<span class="status-text">${escapeHTML(message)}</span>`;
+
+  const isScanning = type === 'scanning';
+  if (elements.scanOverlay) elements.scanOverlay.classList.toggle('hidden', !isScanning);
+  if (elements.filterBar) elements.filterBar.classList.toggle('scanning', isScanning);
 }
 
 function showError(message, showOpenLink = false) {
@@ -441,34 +488,48 @@ function renderSchedule() {
 
   // 1. Header: Top-left Corner Cell
   const cornerCell = document.createElement('div');
-  cornerCell.className = 'grid-cell header-cell corner-cell';
+  cornerCell.className = 'grid-cell header-cell corner-cell cell-anim';
+  cornerCell.setAttribute('role', 'columnheader');
   cornerCell.innerHTML = '<strong>Day</strong><span>Periods</span>';
   elements.gridMatrix.appendChild(cornerCell);
 
   // 2. Header: Period Labels (1 to 5) with exact timings
-  PERIODS.forEach(p => {
+  PERIODS.forEach((p, colIdx) => {
     const pCell = document.createElement('div');
-    pCell.className = 'grid-cell header-cell';
+    pCell.className = 'grid-cell header-cell cell-anim';
+    pCell.setAttribute('role', 'columnheader');
+    pCell.setAttribute('aria-colindex', colIdx + 2);
     pCell.innerHTML = `<strong>${p.label}</strong><span class="period-time">${p.start} - ${p.end}</span>`;
     elements.gridMatrix.appendChild(pCell);
   });
 
   // 3. Build Matrix Rows for Each Working Day (Saturday first)
-  WORKING_DAYS.forEach(day => {
+  WORKING_DAYS.forEach((day, rowIdx) => {
+    // Staggers each day's row in by a small delay so the grid feels like
+    // it settles into place instead of popping in all at once.
+    const rowDelay = `${(rowIdx + 1) * 30}ms`;
+
     const dayLabelCell = document.createElement('div');
-    dayLabelCell.className = 'grid-cell day-header-cell';
+    dayLabelCell.className = 'grid-cell day-header-cell cell-anim';
+    dayLabelCell.setAttribute('role', 'rowheader');
+    dayLabelCell.setAttribute('aria-rowindex', rowIdx + 2);
+    dayLabelCell.style.animationDelay = rowDelay;
     dayLabelCell.innerHTML = `<span>${day}</span>`;
     elements.gridMatrix.appendChild(dayLabelCell);
 
-    PERIODS.forEach(period => {
+    PERIODS.forEach((period, colIdx) => {
       const cell = document.createElement('div');
-      cell.className = 'grid-cell matrix-slot';
+      cell.className = 'grid-cell matrix-slot cell-anim';
+      cell.setAttribute('role', 'gridcell');
+      cell.setAttribute('aria-rowindex', rowIdx + 2);
+      cell.setAttribute('aria-colindex', colIdx + 2);
+      cell.style.animationDelay = rowDelay;
 
       const matchingSlots = filteredSlots.filter(s => s.day === day && s.period === period.id);
 
       if (matchingSlots.length === 0) {
         cell.classList.add('slot-free');
-        cell.innerHTML = '<span class="free-indicator">—</span>';
+        cell.innerHTML = '<span class="free-indicator">Free</span>';
       } else {
         matchingSlots.forEach(slot => {
           const card = createSlotCard(slot);
@@ -485,10 +546,13 @@ function createSlotCard(slot) {
   const typeKey = getBadgeTypeKey(slot);
 
   card.className = `slot-card badge-${typeKey}`;
+  // title= gives a native tooltip on hover/focus so a course name that's
+  // been truncated by the small card width is never fully hidden.
+  card.title = `${slot.course} — ${slot.type}${slot.room ? ' — ' + slot.room : ''}`;
   card.innerHTML = `
     <div class="card-course">${escapeHTML(slot.course)}</div>
     <div class="card-meta">
-      <span class="card-type">${escapeHTML(slot.type)}</span>
+      <span class="card-type">${TYPE_ICONS[typeKey] || ''}${escapeHTML(slot.type)}</span>
       <span class="card-room">${escapeHTML(slot.room)}</span>
     </div>
   `;
@@ -534,6 +598,10 @@ const PDF_PAGE_H = 595;
 // Supersampling factor for the canvas render (sharper text when printed).
 const PDF_SCALE = 2;
 
+// Matches the popup's font stack so the PDF and the on-screen grid read
+// consistently instead of the PDF falling back to plain Arial.
+const PDF_FONT = "-apple-system, 'Segoe UI', Roboto, Arial, sans-serif";
+
 // Print-friendly light palette mirroring the popup's badge themes.
 const PDF_BADGE_COLORS = {
   lecture:  { accent: '#0284c7', bg: '#e0f2fe', text: '#0c4a6e' },
@@ -541,6 +609,17 @@ const PDF_BADGE_COLORS = {
   lab:      { accent: '#059669', bg: '#d1fae5', text: '#064e3b' },
   german:   { accent: '#9333ea', bg: '#f3e8ff', text: '#581c87' },
   elective: { accent: '#e11d48', bg: '#ffe4e6', text: '#881337' }
+};
+
+// A one-letter/short monogram per type, drawn as a small colored chip on
+// each PDF card — mirrors the popup's colorblind-accessible type icons
+// since the printed page has no room for real SVG icons.
+const PDF_TYPE_MONOGRAM = {
+  lecture: 'L',
+  tut: 'T',
+  lab: 'Lb',
+  german: 'DE',
+  elective: 'EL'
 };
 
 function generateAndDownloadPDF() {
@@ -566,6 +645,8 @@ function generateAndDownloadPDF() {
   downloadAnchor.click();
   document.body.removeChild(downloadAnchor);
   URL.revokeObjectURL(downloadUrl);
+
+  showToast('PDF downloaded');
 }
 
 // Draws the full printable page — title block plus the 6-day x 5-period
@@ -585,7 +666,7 @@ function renderScheduleCanvas(filteredSlots) {
 
   // Title block: cohort name (or generic title) + selection summary.
   ctx.fillStyle = '#0f172a';
-  ctx.font = 'bold 17px Arial, sans-serif';
+  ctx.font = `bold 17px ${PDF_FONT}`;
   ctx.fillText(state.cohortName || 'GUC Semester Schedule', margin, margin + 16);
 
   const summaryParts = [];
@@ -594,7 +675,7 @@ function renderScheduleCanvas(filteredSlots) {
   if (state.selectedElective) summaryParts.push(`Elective ${state.selectedElective}`);
   summaryParts.push(`Generated ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
   ctx.fillStyle = '#64748b';
-  ctx.font = '9px Arial, sans-serif';
+  ctx.font = `9px ${PDF_FONT}`;
   ctx.fillText(summaryParts.join('   |   '), margin, margin + 34);
 
   // Grid geometry.
@@ -611,17 +692,17 @@ function renderScheduleCanvas(filteredSlots) {
   // Header row: corner cell + period labels with bell times.
   ctx.fillStyle = '#f1f5f9';
   ctx.fillRect(gridX, gridY, dayColW + periodColW * PERIODS.length, headerRowH);
-  drawPdfBoxLabel(ctx, gridX, gridY, dayColW, headerRowH, 'Day / Periods', 'bold 8px Arial, sans-serif', '#64748b');
+  drawPdfBoxLabel(ctx, gridX, gridY, dayColW, headerRowH, 'Day / Periods', `bold 8px ${PDF_FONT}`, '#64748b');
   ctx.strokeRect(gridX, gridY, dayColW, headerRowH);
 
   PERIODS.forEach((p, i) => {
     const x = gridX + dayColW + i * periodColW;
     ctx.fillStyle = '#0f172a';
-    ctx.font = 'bold 8.5px Arial, sans-serif';
+    ctx.font = `bold 8.5px ${PDF_FONT}`;
     ctx.textAlign = 'center';
     ctx.fillText(p.label, x + periodColW / 2, gridY + 13);
     ctx.fillStyle = '#94a3b8';
-    ctx.font = '7px Arial, sans-serif';
+    ctx.font = `7px ${PDF_FONT}`;
     ctx.fillText(`${p.start} - ${p.end}`, x + periodColW / 2, gridY + 23);
     ctx.textAlign = 'left';
     ctx.strokeRect(x, gridY, periodColW, headerRowH);
@@ -633,7 +714,7 @@ function renderScheduleCanvas(filteredSlots) {
 
     ctx.fillStyle = '#f1f5f9';
     ctx.fillRect(gridX, y, dayColW, dayRowH);
-    drawPdfBoxLabel(ctx, gridX, y, dayColW, dayRowH, day, 'bold 9px Arial, sans-serif', '#334155');
+    drawPdfBoxLabel(ctx, gridX, y, dayColW, dayRowH, day, `bold 9px ${PDF_FONT}`, '#334155');
     ctx.strokeRect(gridX, y, dayColW, dayRowH);
 
     PERIODS.forEach((period, colIdx) => {
@@ -659,7 +740,7 @@ function drawPdfBoxLabel(ctx, x, y, w, h, text, font, color) {
 
 function drawPdfSlotCell(ctx, x, y, w, h, slots) {
   if (!slots.length) {
-    drawPdfBoxLabel(ctx, x, y, w, h, '—', 'bold 10px Arial, sans-serif', '#d1d5db');
+    drawPdfBoxLabel(ctx, x, y, w, h, 'Free', `bold 8px ${PDF_FONT}`, '#9ca3af');
     return;
   }
 
@@ -670,11 +751,13 @@ function drawPdfSlotCell(ctx, x, y, w, h, slots) {
   slots.forEach((slot, i) => {
     const cardY = y + pad + i * (cardH + gap);
     if (cardY + cardH > y + h - pad + 1 && i > 0) return; // don't overflow the cell
-    const colors = PDF_BADGE_COLORS[getBadgeTypeKey(slot)] || PDF_BADGE_COLORS.tut;
+    const typeKey = getBadgeTypeKey(slot);
+    const colors = PDF_BADGE_COLORS[typeKey] || PDF_BADGE_COLORS.tut;
+    const monogram = PDF_TYPE_MONOGRAM[typeKey] || '';
     const cardX = x + pad;
     const cardW = w - pad * 2;
 
-    pathRounded(ctx, cardX, cardY, cardW, cardH, 3);
+    pathRounded(ctx, cardX, cardY, cardW, cardH, 4);
     ctx.fillStyle = colors.bg;
     ctx.fill();
     ctx.fillStyle = colors.accent;
@@ -682,16 +765,39 @@ function drawPdfSlotCell(ctx, x, y, w, h, slots) {
 
     ctx.fillStyle = colors.text;
     if (cardH >= 22) {
-      ctx.font = 'bold 7.5px Arial, sans-serif';
+      ctx.font = `bold 7.5px ${PDF_FONT}`;
       ctx.fillText(fitText(ctx, slot.course, cardW - 12), cardX + 7, cardY + 10);
-      ctx.font = '6px Arial, sans-serif';
-      ctx.fillText(fitText(ctx, slot.type, cardW - 40), cardX + 7, cardY + cardH - 5);
+
+      // Type row: a small colored monogram chip (matching the popup's type
+      // icon) sits before the type label, so the class type is legible on
+      // a printed page even without color vision.
+      const typeY = cardY + cardH - 5;
+      let typeX = cardX + 7;
+      if (monogram) {
+        const chipW = monogram.length > 1 ? 11 : 7;
+        const chipH = 7;
+        const chipY = typeY - chipH + 1;
+        pathRounded(ctx, typeX, chipY, chipW, chipH, 2);
+        ctx.fillStyle = colors.accent;
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `bold 5px ${PDF_FONT}`;
+        ctx.textAlign = 'center';
+        ctx.fillText(monogram, typeX + chipW / 2, chipY + chipH - 1.5);
+        ctx.textAlign = 'left';
+        typeX += chipW + 3;
+        ctx.fillStyle = colors.text;
+      }
+      ctx.font = `6px ${PDF_FONT}`;
+      ctx.fillText(fitText(ctx, slot.type, cardW - (typeX - cardX) - 30), typeX, typeY);
+
       ctx.textAlign = 'right';
-      ctx.font = 'bold 6px Arial, sans-serif';
+      ctx.font = `bold 6px ${PDF_FONT}`;
+      ctx.fillStyle = colors.text;
       ctx.fillText(slot.room, cardX + cardW - 4, cardY + cardH - 5);
       ctx.textAlign = 'left';
     } else {
-      ctx.font = 'bold 6.5px Arial, sans-serif';
+      ctx.font = `bold 6.5px ${PDF_FONT}`;
       ctx.fillText(fitText(ctx, `${slot.course} · ${slot.room}`, cardW - 12), cardX + 7, cardY + cardH / 2 + 2);
     }
   });
