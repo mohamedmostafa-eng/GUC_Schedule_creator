@@ -62,8 +62,28 @@ function runGucParserTests() {
     'REAL PORTAL: tag "3 MET III 3G T016" is captured whole — semester 3 + major MET survive (previously degraded to bare T016 with both lost) — and the injected svgjs extension noise in that row breaks nothing');
   assert(deRows.every(r => r.groups.length === 1 && r.groups[0].major === 'MET' && r.groups[0].semester === '3'),
     'REAL PORTAL: every one of the 9 rows resolves its tag with major+semester intact');
-  assert(result.data.availableGroups.tutorials.includes('3MET-016') && !result.data.availableGroups.tutorials.includes('-016'),
-    'REAL PORTAL: dropdown key is "3MET-016", not the anonymous "-016" (the legacy synthetic bare-tag cells may still produce "-011" by design)');
+  // ---------- German-only tutorial eligibility (v4.0) ----------
+  // The stacked DE303 rows carry the GERMAN course's own parallel section
+  // numbers (T016..T024). Those live in the German class's numbering space,
+  // not the cohort's — offering them in the Tutorial/Practical dropdown let
+  // students pick a "group" that matched none of their real tutorials and
+  // silently emptied the grid. Eligibility rule: a T/P key enters
+  // availableGroups.tutorials only via a NON-German row; German rows
+  // contribute only their level.
+  ['3MET-016', '3MET-019', '3MET-024', '-016', '-019', '-024'].forEach(key => {
+    assert(!result.data.availableGroups.tutorials.includes(key),
+      'GERMAN ELIGIBILITY: German-row section tag "' + key + '" (exists only on stacked DE303 rows) is NOT offered as a tutorial group');
+  });
+  assert(!result.data.availableGroups.tutorials.includes('-001') &&
+         !result.data.availableGroups.tutorials.includes('-021') &&
+         !result.data.availableGroups.tutorials.includes('-081'),
+    'GERMAN ELIGIBILITY: synthetic German-row tags (DE101 T001 / DE202 T021 / DE404 T081) are not offered as tutorial groups either');
+  assert(result.data.availableGroups.tutorials.includes('-011'),
+    'GERMAN ELIGIBILITY: a cohort group tagged on non-German rows (CSEN401 T011/P011) stays eligible for the dropdown');
+  assert(result.data.availableGroups.tutorials.includes('ME-11'),
+    'GERMAN ELIGIBILITY: non-German rows still register their groups exactly as before (the compound synthetic cell\'s "ME-11" fragment is pre-existing, unchanged)');
+  assert(result.data.availableGroups.german.length === 4,
+    'GERMAN ELIGIBILITY: excluding German-row tags does not affect level registration — all 4 German levels still offered');
   assert(result.data.availableGroups.german.includes('DE303'),
     'REAL PORTAL: German dropdown registers DE303 from the course code itself (the DE token is dropped as the course code, so token-based registration alone leaves the German dropdown empty)');
   const mathLecReal = slots.find(s => s.course === 'MATH301' && s.day === 'Thursday' && s.period === 3);
@@ -173,6 +193,15 @@ function runGucParserTests() {
   const widened = filter('3MET-011', 'DE303').filter(s => normalizeCourseCode(s.course) === 'DE303');
   assert(widened.length === 11,
     'FILTER: German group number independent of the tutorial group (011 matches no DE303 row tag) widens to ALL DE303 rows — the 9 stacked Thursday rooms + both Monday rows — instead of hiding German entirely ("German tuts not going in German")');
+
+  // The v4.0 eligibility fix deliberately touched ONLY the dropdown lists:
+  // the filter engine still matches German rows by their tags regardless of
+  // what the dropdown offers. "3MET-019" is no longer an offered tutorial
+  // option (it exists only on German rows), yet a cohort group that
+  // coincides with a German tag still narrows the level to that one room,
+  // and an unmatched group still widens to the whole level (above).
+  assert(filter('3MET-019', 'DE303').filter(s => s.course === 'DE303' && s.day === 'Thursday').length === 1,
+    'FILTER: German-only eligibility change did not touch filtering — a German-row tag that is no longer offered in the dropdown still narrows the level when selected');
 
   return { results, parseResult: result };
 }
