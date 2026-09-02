@@ -211,6 +211,25 @@ function runGucParserTests() {
   assert(filter('3MET-019', 'DE303').filter(s => s.course === 'DE303' && s.day === 'Thursday').length === 1,
     'FILTER: German-only eligibility change did not touch filtering — a German-row tag that is no longer offered in the dropdown still narrows the level when selected');
 
+  // ---------- cohort-aware group-code translator (v4.2.2) ----------
+  // GUC reuses major letter codes: the real portal tags Business
+  // Informatics groups as 5BI-xxx, but the static dictionary reads BI as
+  // Biotechnology. The cohort name (the ticked chip) is authoritative.
+  const prevCohort = state.cohortName;
+  state.cohortName = 'Business Informatics 5th Semester I';
+  assert(decodeTutorialKey('5BI-017') === 'Business Informatics — 5th Semester — Group 17',
+    'TRANSLATOR: cohort name wins over the dictionary — 5BI-017 decodes as Business Informatics (real-portal BI tag), not Biotechnology');
+  state.cohortName = 'Biotechnology 3rd Semester I';
+  assert(decodeTutorialKey('5BI-017') === 'Biotechnology — 5th Semester — Group 17',
+    'TRANSLATOR: a Biotechnology cohort keeps the dictionary reading of BI');
+  state.cohortName = 'IET & MET 3rd Semester I';
+  assert(decodeTutorialKey('5MCTR-041') === 'Mechatronics Engineering — 5th Semester — Group 41',
+    'TRANSLATOR: unrelated cohort names leave the dictionary untouched (MCTR stays Mechatronics)');
+  state.cohortName = '';
+  assert(decodeTutorialKey('5BI-017') === 'Biotechnology — 5th Semester — Group 17',
+    'TRANSLATOR: without a cohort name the dictionary reading stands');
+  state.cohortName = prevCohort;
+
   return { results, parseResult: result };
 }
 

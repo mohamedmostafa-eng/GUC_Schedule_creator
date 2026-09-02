@@ -62,7 +62,7 @@ const MAJOR_NAMES = {
   ELCT: 'Electronics Engineering',
   ARCH: 'Architecture Engineering',
   CIVIL: 'Civil Engineering',
-  BI: 'Biotechnology',
+  BI: 'Biotechnology', // context-sensitive: Business Informatics cohorts tag groups 5BI-xxx — popup.js resolves this via the cohort name
   PHRM: 'Pharmacy',
   MGT: 'Management',
   BINF: 'Business Informatics',

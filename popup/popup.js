@@ -515,6 +515,34 @@ function populateSelect(selectElement, items, selectedValue, defaultLabel) {
   });
 }
 
+// GUC reuses major letter codes across faculties — "BI" is tagged on
+// Business Informatics cohorts (5BI-017) even though the static
+// dictionary reads it as Biotechnology. The portal's cohort name (the
+// chip, taken from the schedule-type dropdown) is the authority for the
+// CURRENT page, so when it names a major that the tag's letters can
+// stand for, that major wins over the dictionary.
+function cohortMajorName(majorLetters) {
+  if (!majorLetters || !state.cohortName) return null;
+  const cohort = state.cohortName.toLowerCase();
+  const letters = majorLetters.toLowerCase();
+  // The abbreviation itself appears as a word in the cohort name
+  // ("IET & MET 3rd Semester I" -> tag "MET" is confirmed by context).
+  if (new RegExp('(^|[^a-z])' + letters + '([^a-z]|$)').test(cohort) && MAJOR_NAMES[majorLetters]) {
+    return MAJOR_NAMES[majorLetters];
+  }
+  // A known major whose word-initials spell the tag's letters:
+  // "Business Informatics 5th Semester I" -> "BI" matches 5BI-017.
+  for (const name of Object.values(MAJOR_NAMES)) {
+    if (!cohort.includes(name.toLowerCase())) continue;
+    const initials = name.split(/\s+/)
+      .filter(word => /^[a-z]/i.test(word))
+      .map(word => word[0].toLowerCase())
+      .join('');
+    if (initials === letters) return name;
+  }
+  return null;
+}
+
 // Group-Code Translator: decodes a selected tutorial/practical key like
 // "5MCTR-041" into "Mechatronics Engineering — 5th Semester — Tutorial
 // Group 41" (kind is a best-effort guess since the unified key doesn't
@@ -524,7 +552,8 @@ function decodeTutorialKey(key) {
   const m = key.match(/^(\d)?([A-Z]*)-(\d+)$/);
   if (!m) return null;
   const [, semester, major, number] = m;
-  const majorName = major && MAJOR_NAMES[major] ? MAJOR_NAMES[major] : (major || null);
+  const majorName = cohortMajorName(major) ||
+    (major && MAJOR_NAMES[major] ? MAJOR_NAMES[major] : (major || null));
   const parts = [];
   if (majorName) parts.push(majorName);
   if (semester) parts.push(`${semester}${ordinalSuffix(semester)} Semester`);
@@ -1102,5 +1131,5 @@ function buildPdfFromJpeg(jpegBytes, pixelWidth, pixelHeight, widthPt, heightPt)
 // Offline test harness hook: lets tests/test-harness.html (and its Node
 // runner) call the real filter engine without a chrome.* runtime.
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { computeFilteredSlots, parseGroupKey, getBadgeTypeKey, buildPdfFromJpeg };
+  module.exports = { computeFilteredSlots, parseGroupKey, getBadgeTypeKey, buildPdfFromJpeg, decodeTutorialKey };
 }

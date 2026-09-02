@@ -26,6 +26,12 @@ analytics, and no network request of any kind built into this extension.
   a ~250px-wide strip with everything stacked vertically. Both layouts
   now use fixed pixel widths (780/640, under Chrome's 800px popup cap),
   so the window always opens at full size with no squeezed first render.
+- **The translator reads the room.** GUC reuses major letter codes —
+  Business Informatics cohorts tag their groups `5BI-xxx`, which the
+  static dictionary reads as Biotechnology. The group-code translator now
+  resolves an abbreviation against the cohort's own name (the ticked
+  chip) first, so `5BI-017` on a *Business Informatics 5th Semester I*
+  page decodes as **Business Informatics — 5th Semester — Group 17**.
 - **Polish from the community audit:** dropdown options are built with
   DOM APIs instead of `innerHTML`, rapid filter flips no longer restart
   the grid's entrance animation (80 ms debounce), and the origin of the
