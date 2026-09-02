@@ -253,8 +253,8 @@ async function loadPersistedState() {
   return new Promise((resolve) => {
     chrome.storage.local.get(['guc_schedule_cache', 'guc_user_prefs', UI_SIZE_STORAGE_KEY], (result) => {
       // Size preference applies immediately — even with no schedule data —
-      // so the popup never flashes the wrong density. Fit week is the
-      // default for anyone who has never chosen.
+      // so the popup never flashes the wrong density. The classic
+      // maximized layout is the default for anyone who has never chosen.
       applyUiSize(result[UI_SIZE_STORAGE_KEY] && result[UI_SIZE_STORAGE_KEY].size);
       if (result.guc_user_prefs) {
         state.selectedTutorial = result.guc_user_prefs.tutorial || '';
@@ -291,6 +291,7 @@ function persistScheduleCache(slots, availableGroups, cohortName) {
     guc_schedule_cache: { slots, availableGroups, cohortName, timestamp, parserVersion: SCHEDULE_CACHE_VERSION }
   });
   elements.syncTimestamp.textContent = `Synced at ${timestamp}`;
+  elements.syncTimestamp.classList.add('synced');
 }
 
 // Invalid cached selections are cleared instead of being kept: a saved
@@ -464,6 +465,7 @@ function hideError() {
 function updateUIWithCachedData() {
   if (state.lastSynced) {
     elements.syncTimestamp.textContent = `Offline cache · saved ${state.lastSynced}`;
+    elements.syncTimestamp.classList.add('synced');
   }
   populateDropdowns();
   updateTranslatorPanel();

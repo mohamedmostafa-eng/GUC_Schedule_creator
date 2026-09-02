@@ -1,0 +1,6 @@
+# Dev-only dependencies for the offline test suite (see README §4) — the
+# extension itself ships without any build tooling.
+node_modules/
+
+# Local tooling state
+.zcode/

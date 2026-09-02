@@ -30,6 +30,14 @@ analytics, and no network request of any kind built into this extension.
   DOM APIs instead of `innerHTML`, rapid filter flips no longer restart
   the grid's entrance animation (80 ms debounce), and the origin of the
   compound-fixture `ME-11` group key is now documented in the test suite.
+- **Screenshots** live in [`screenshots/`](screenshots/) — captured from
+  the real popup via `tests/ui-preview.html`:
+
+  | | |
+  |---|---|
+  | ![Classic maximized (default)](screenshots/ui-loaded.png) | ![Compact minimized](screenshots/ui-mini.png) |
+  | ![Crowded cell, internal slider](screenshots/ui-stacked.png) | ![Expanded cell (+N more)](screenshots/ui-stacked-expanded.png) |
+  | ![No matching classes](screenshots/ui-no-match.png) | ![Empty / error state](screenshots/ui-empty.png) |
 
 ---
 
@@ -73,14 +81,6 @@ analytics, and no network request of any kind built into this extension.
   `aria-expanded` on the +N more chips, all animation disabled under
   `prefers-reduced-motion`, and the header/filters stack cleanly on narrow
   windows. Today's day is quietly highlighted in the grid.
-- **Screenshots** live in [`screenshots/`](screenshots/) — captured from
-  the real popup via `tests/ui-preview.html`:
-
-  | | |
-  |---|---|
-  | ![Classic maximized (default)](screenshots/ui-loaded.png) | ![Compact minimized](screenshots/ui-mini.png) |
-  | ![Crowded cell, internal slider](screenshots/ui-stacked.png) | ![Expanded cell (+N more)](screenshots/ui-stacked-expanded.png) |
-  | ![No matching classes](screenshots/ui-no-match.png) | ![Empty / error state](screenshots/ui-empty.png) |
 
 ---
 

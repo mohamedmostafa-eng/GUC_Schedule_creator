@@ -853,7 +853,8 @@ body:not(.size-max) .btn-icon .icon-minimize { display: none; }
   gap: 6px;
 }
 
-/* A small status dot before the timestamp: grey while never synced. */
+/* A small status dot before the timestamp: grey while never synced,
+   green once real data is in. */
 .sync-status::before {
   content: '';
   width: 6px;
@@ -861,6 +862,10 @@ body:not(.size-max) .btn-icon .icon-minimize { display: none; }
   border-radius: 50%;
   background: var(--text-muted);
   flex-shrink: 0;
+}
+
+.sync-status.synced::before {
+  background: var(--ok);
 }
 
 .footer-hint {
@@ -989,6 +994,12 @@ body.size-max .matrix-slot {
   overflow-y: auto;
   overflow-x: hidden;
   gap: 4px;
+}
+
+/* The classic layout's cells were transparent with just their border —
+   the subtle tint is a compact-mode addition. */
+body.size-max .matrix-slot:not(.slot-free) {
+  background: transparent;
 }
 
 body.size-max .slot-card {
