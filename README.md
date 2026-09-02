@@ -15,12 +15,17 @@ analytics, and no network request of any kind built into this extension.
 ## What's new in v4.2
 
 - **Two layouts, one toggle.** The popup opens in the classic **maximized**
-  layout from the main branch — 900px wide, roomy 130px class cards with
+  layout from the main branch — 780px wide, roomy 130px class cards with
   the internal scroll slider, Force Re-scan in the footer, Export as a
   quiet secondary button. The icon button in the header minimizes it to
-  the **compact v4.0 layout** — header actions, the "Your classes" filter
-  row with Clear filters, +N more chips on crowded cells, and today's-day
-  highlight. Your choice is remembered across sessions.
+  the **compact v4.0 layout** (640px) — header actions, the "Your
+  classes" filter row with Clear filters, +N more chips on crowded cells,
+  and today's-day highlight. Your choice is remembered across sessions.
+- **Opens full-size every time.** Earlier builds sized the popup body
+  relative to the viewport, which on the live portal could collapse into
+  a ~250px-wide strip with everything stacked vertically. Both layouts
+  now use fixed pixel widths (780/640, under Chrome's 800px popup cap),
+  so the window always opens at full size with no squeezed first render.
 - **Polish from the community audit:** dropdown options are built with
   DOM APIs instead of `innerHTML`, rapid filter flips no longer restart
   the grid's entrance animation (80 ms debounce), and the origin of the

@@ -73,7 +73,12 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   background-color: var(--bg-app);
   color: var(--text-primary);
-  width: min(900px, 100vw - 32px);
+  /* Fixed pixel widths, never vw-relative: Chrome sizes the popup window
+     to the document's preferred width (capped at 800), and a vw-based
+     width turns that into a feedback loop — the window opens at whatever
+     default size it got and the body just follows it (the "squeezed
+     popup" bug on the live portal). 780/640 both sit under the cap. */
+  width: 640px;
   min-height: 580px;
   padding: 16px;
   overflow-x: hidden;
@@ -474,7 +479,8 @@ body:not(.size-max) .btn-icon .icon-minimize { display: none; }
   display: grid;
   grid-template-columns: 85px repeat(5, 1fr);
   gap: 8px;
-  min-width: 760px;
+  /* Fits the 640px minimized body exactly — no horizontal slider. */
+  min-width: 580px;
 }
 
 @keyframes fadeSlideIn {
@@ -910,12 +916,16 @@ body:not(.size-max) .btn-icon .icon-minimize { display: none; }
 
 /* --------------------------------------------------------------------------
    Classic maximized size mode (default) — the spacious main-branch
-   presentation: 900px body, fixed 130px cells with the internal slider,
+   presentation: 780px body, fixed 130px cells with the internal slider,
    header without the re-scan button (it lives in the footer here),
    secondary-styled Export, and no +N more chips.
    The compact minimized layout (body without .size-max) is the base
    stylesheet: header actions, filter context row, +N more chips.
    -------------------------------------------------------------------------- */
+body.size-max {
+  width: 780px;
+}
+
 body.size-max #refreshBtn { display: none; }
 
 body.size-max #exportPdfBtn {
@@ -953,7 +963,9 @@ body.size-max .day-header-cell.day-today {
 
 body.size-max .matrix-grid {
   grid-template-columns: 85px repeat(5, 1fr);
-  min-width: 760px;
+  /* 720px fits the 780px body exactly (padding + wrapper subtracted), so
+     the classic layout needs no horizontal slider either. */
+  min-width: 720px;
   gap: 8px;
 }
 
@@ -1004,7 +1016,9 @@ body.size-max .free-indicator { font-size: 10px; }
   }
 }
 
-@media (max-width: 680px) {
+/* Below the popup's fixed widths, e.g. the preview page in a tiny
+   window — never reachable inside the 640/780px popup itself. */
+@media (max-width: 520px) {
   body {
     padding: 10px;
     width: calc(100vw - 20px);
