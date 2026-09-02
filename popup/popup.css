@@ -288,6 +288,25 @@ body {
   font-weight: 700;
 }
 
+/* Quiet text-buttons (Clear filters, banner links, footer links). */
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 11px;
+  font-family: inherit;
+  font-weight: 650;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  padding: 2px 1px;
+  border-radius: 4px;
+}
+
+.btn-link:hover {
+  color: #7dd3fc;
+}
+
 .error-link:hover {
   color: #fecaca;
 }
@@ -500,15 +519,30 @@ body {
   min-height: 64px;
 }
 
-/* Actual timetable slot cells get a FIXED height with the overflow
-   collapsed behind a "+N more" chip — cells no longer scroll internally
-   (an ambiguous affordance) and no longer bleed into the row below. */
+/* Actual timetable slot cells keep a FIXED height. When 3+ classes
+   collide in one cell, the cell scrolls internally (the thin "slider"
+   scrollbar below) so nothing bleeds into the row below — and the "+N
+   more" chip makes that overflow explicit instead of ambiguous. */
 .matrix-slot {
   height: 130px;
   min-height: 130px;
   justify-content: flex-start;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   gap: 4px;
+}
+
+.matrix-slot::-webkit-scrollbar {
+  width: 4px;
+}
+
+.matrix-slot::-webkit-scrollbar-thumb {
+  background: var(--border-muted);
+  border-radius: 2px;
+}
+
+.matrix-slot::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .matrix-slot:not(.slot-free) {
@@ -516,13 +550,9 @@ body {
   background: rgba(31, 41, 55, 0.25);
 }
 
-/* Everything past the first two cards stays in the DOM but invisible
-   while the cell is collapsed; .expanded reveals it and lets the cell
-   (and its row) grow to fit. */
-.matrix-slot:not(.expanded) .slot-card:nth-child(n+4) {
-  display: none;
-}
-
+/* .expanded (via the "+N more" chip) drops the fixed height so the whole
+   row grows and every colliding card is visible at once — no scrolling
+   needed. */
 .matrix-slot.expanded {
   height: auto;
   min-height: 130px;
@@ -532,8 +562,12 @@ body {
 }
 
 /* "+N more" chip — a button, so it is keyboard-reachable and announces
-   its expanded state to screen readers. */
+   its expanded state to screen readers. Sticky at the cell's bottom edge
+   so it stays visible while the student scrolls the cell's slider. */
 .more-chip {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
   margin-top: auto;
   display: inline-flex;
   align-items: center;

@@ -12,6 +12,57 @@ analytics, and no network request of any kind built into this extension.
 
 ---
 
+## What's new in v4.0
+
+- **The Tutorial/Practical dropdown only offers real cohort groups.** The
+  portal stacks the German course's parallel sections (e.g. nine `DE303`
+  rows tagged `T016`–`T024`) inside one period cell, and those German-class
+  section numbers used to be registered as tutorial-group options. Picking
+  one as "your tutorial" matched none of your real tutorials and silently
+  emptied the grid. A group key now enters the dropdown only if it appears
+  on a non-German row; German rows contribute only their level. The
+  filtering engine is untouched — when a selected cohort group happens to
+  coincide with a German section tag, German still narrows to that room,
+  and it still widens to the whole level otherwise.
+- **Dead saved selections clear themselves.** A tutorial/level/elective
+  remembered from an older parser version (or a different cohort page) is
+  dropped at load instead of filtering the grid against a group that no
+  longer exists. The cache is version-stamped (`parserVersion: 4`), so
+  updating the extension is enough.
+- **A deliberate header.** The cohort chip and live status sit under the
+  title; **Force Re-scan** moved up next to a filled **Export PDF** button,
+  so both main actions are one glance away.
+- **A filter bar that explains itself.** "Your classes" with a live
+  *N filters active* hint, clearer dropdown placeholders, and a
+  **Clear filters** control that appears the moment anything is selected.
+- **Honest timetable cells.** Crowded cells keep the thin internal
+  scroll "slider" they always had, and a sticky **+N more** chip now makes
+  the overflow explicit — click it and the cell expands in place to show
+  every colliding class at once ("Show less" collapses it back).
+- **Rewritten states.** A friendlier no-data screen, a new *No classes
+  match your filters* screen with its own Clear-filters button, clearer
+  scan/error copy, and a footer that says where the data came from
+  ("Offline cache · saved 12:45") and the privacy promise
+  ("Runs locally — nothing leaves this device").
+- **Export with feedback.** The button shows *Exporting…* while the PDF
+  renders, a toast confirms success, and failures land in a red error
+  toast instead of a dead click.
+- **Accessibility & responsive polish.** Visible keyboard focus rings on
+  every control, ARIA live regions for status/toast/filter hint,
+  `aria-expanded` on the +N more chips, all animation disabled under
+  `prefers-reduced-motion`, and the header/filters stack cleanly on narrow
+  windows. Today's day is quietly highlighted in the grid.
+- **Screenshots** live in [`screenshots/`](screenshots/) — captured from
+  the real popup via `tests/ui-preview.html`:
+
+  | | |
+  |---|---|
+  | ![Loaded timetable](screenshots/ui-loaded.png) | ![Stacked cell, collapsed](screenshots/ui-stacked.png) |
+  | ![Stacked cell, expanded](screenshots/ui-stacked-expanded.png) | ![No matching classes](screenshots/ui-no-match.png) |
+  | ![Empty / error state](screenshots/ui-empty.png) | |
+
+---
+
 ## What's new in v3.1
 
 - **A clean empty schedule.** With nothing chosen in the dropdowns, the
@@ -156,6 +207,7 @@ guc-timetable-matrix/
 ├── shared-constants.js     # Single source of truth: days, periods, German/elective lists
 ├── content.js               # DOM parser — reads the schedule table on the page
 ├── icons/                   # Toolbar icons (16/48/128px)
+├── screenshots/             # Popup UI screenshots (captured from ui-preview.html)
 ├── popup/
 │   ├── popup.html           # Popup UI shell
 │   ├── popup.js               # State, rendering, filtering, translator, PDF export

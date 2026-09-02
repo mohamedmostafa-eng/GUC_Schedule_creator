@@ -679,9 +679,10 @@ function renderSchedule() {
         cell.classList.add('slot-free');
         cell.innerHTML = '<span class="free-indicator">Free</span>';
       } else {
-        // All cards are always in the DOM (CSS collapses everything past
-        // MAX_VISIBLE_CARDS while the cell isn't .expanded), so expanding
-        // a cell is a pure class toggle — no re-render.
+        // Every card is always in the DOM: the cell scrolls internally when
+        // crowded (the pre-v4 "slider" behavior, kept deliberately), and the
+        // sticky "+N more" chip both flags the overflow and expands the cell
+        // to show everything at once without scrolling.
         matchingSlots.forEach(slot => {
           cell.appendChild(createSlotCard(slot));
         });
