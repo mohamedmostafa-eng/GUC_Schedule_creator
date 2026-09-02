@@ -251,6 +251,21 @@ body {
   cursor: progress;
 }
 
+/* Icon-only size toggle (fit week <-> comfortable cards):
+   minimize icon in fit mode, expand icon in comfortable mode. */
+.btn-icon {
+  padding: 6px 8px;
+}
+
+.btn-icon .icon-expand,
+body.size-fit .btn-icon .icon-expand { display: none; }
+
+body:not(.size-fit) .btn-icon .icon-expand { display: inline; }
+
+body.size-fit .btn-icon .icon-minimize { display: inline; }
+
+body:not(.size-fit) .btn-icon .icon-minimize { display: none; }
+
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
@@ -894,6 +909,153 @@ body {
 .toast.toast-error .toast-icon {
   color: var(--danger);
 }
+
+/* --------------------------------------------------------------------------
+   Fit-week size mode (default) — fill Chrome's 800x600 popup ceiling so the
+   whole Sat–Thu week is visible with no scrollbars: 1fr day rows compress
+   to ~55px, cards go compact, and an expanded cell overlays the grid area
+   instead of growing a row (which would reintroduce a slider).
+   Comfortable mode (body without .size-fit) keeps the roomy v4.0 layout.
+   -------------------------------------------------------------------------- */
+body.size-fit {
+  width: min(800px, calc(100vw - 16px));
+  height: min(600px, 100vh);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+body.size-fit .app-container {
+  flex: 1;
+  min-height: 0;
+}
+
+body.size-fit .header {
+  padding: 8px 12px;
+  border-radius: 10px;
+}
+
+body.size-fit .title-wrap h1 { font-size: 14.5px; }
+
+body.size-fit .btn {
+  min-height: 26px;
+  padding: 4px 10px;
+  font-size: 11.5px;
+}
+
+body.size-fit .btn-icon { padding: 4px 7px; }
+
+body.size-fit .filter-bar {
+  padding: 8px 12px 10px;
+  gap: 6px;
+}
+
+body.size-fit .filter-head { min-height: 15px; }
+
+body.size-fit .filter-controls { gap: 8px; }
+
+body.size-fit .select-group { gap: 4px; padding: 2px 4px; }
+
+body.size-fit .select-group label { font-size: 10px; }
+
+body.size-fit .select-group select {
+  padding: 5px 8px;
+  font-size: 11.5px;
+  border-radius: 6px;
+}
+
+body.size-fit .translator-subtitle { font-size: 9.5px; margin-top: 0; }
+
+body.size-fit .timetable-wrapper {
+  flex: 1;
+  min-height: 0;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+body.size-fit .grid-scroll {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: auto;
+}
+
+body.size-fit .matrix-grid {
+  height: 100%;
+  min-width: 0;
+  grid-template-columns: 62px repeat(5, minmax(0, 1fr));
+  grid-template-rows: 30px repeat(6, minmax(0, 1fr));
+  gap: 4px;
+}
+
+body.size-fit .grid-cell {
+  min-height: 0;
+  padding: 4px 5px;
+  border-radius: 6px;
+}
+
+body.size-fit .header-cell { min-height: 0; padding: 2px 3px; }
+
+body.size-fit .header-cell strong { font-size: 10px; }
+
+body.size-fit .header-cell .period-time { font-size: 8px; }
+
+body.size-fit .day-header-cell { font-size: 10.5px; }
+
+/* Cells stretch to their 1fr row track; overflow stays inside the cell
+   (never the page) and the +N more chip marks it. */
+body.size-fit .matrix-slot {
+  height: auto;
+  min-height: 0;
+  overflow: hidden;
+  gap: 2px;
+}
+
+body.size-fit .slot-card {
+  padding: 3px 6px;
+  border-left-width: 3px;
+  border-radius: 5px;
+}
+
+body.size-fit .card-course { font-size: 10.5px; }
+
+body.size-fit .card-meta { font-size: 8.5px; margin-top: 2px; }
+
+body.size-fit .card-room { padding: 0 4px; }
+
+body.size-fit .free-indicator { font-size: 8.5px; }
+
+/* Expanded cell overlays the whole grid area (grid-scroll is the
+   positioning parent) — every colliding class is listed without moving
+   the layout a pixel. */
+body.size-fit .matrix-slot.expanded {
+  position: absolute;
+  inset: 0;
+  height: auto;
+  min-height: 0;
+  z-index: 6;
+  overflow-y: auto;
+  padding: 8px;
+  gap: 5px;
+}
+
+body.size-fit .matrix-slot.expanded .slot-card {
+  flex-shrink: 0;
+  padding: 6px 8px;
+}
+
+body.size-fit .matrix-slot.expanded .card-course { font-size: 11.5px; }
+
+body.size-fit .matrix-slot.expanded .card-meta { font-size: 10px; margin-top: 3px; }
+
+body.size-fit .more-chip {
+  padding: 2px 5px;
+  font-size: 9px;
+}
+
+body.size-fit .footer { font-size: 10px; padding: 0 2px; }
 
 /* --------------------------------------------------------------------------
    Reduced Motion & Responsive

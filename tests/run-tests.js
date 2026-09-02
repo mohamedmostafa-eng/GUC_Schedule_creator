@@ -82,6 +82,14 @@ function runGucParserTests() {
     'GERMAN ELIGIBILITY: a cohort group tagged on non-German rows (CSEN401 T011/P011) stays eligible for the dropdown');
   assert(result.data.availableGroups.tutorials.includes('ME-11'),
     'GERMAN ELIGIBILITY: non-German rows still register their groups exactly as before (the compound synthetic cell\'s "ME-11" fragment is pre-existing, unchanged)');
+  // Where "ME-11" comes from: the synthetic Saturday compound cell
+  // "3 IET-8 & MET11 SM T011 C4.321". The tokenizer's legacy compact
+  // alternative reads "MET11" as a group tag — major "ME" + T/P number
+  // "11" (the trailing "T" of MET is consumed as the T/P marker) — so
+  // classifyGroupToken yields {major:"ME", number:"11"} and
+  // groupTokenKey() builds "ME-11". Pre-existing v3-era behavior of the
+  // deliberately messy compound fixture; pinned here so the eligibility
+  // change can't silently alter it.
   assert(result.data.availableGroups.german.length === 4,
     'GERMAN ELIGIBILITY: excluding German-row tags does not affect level registration — all 4 German levels still offered');
   assert(result.data.availableGroups.german.includes('DE303'),

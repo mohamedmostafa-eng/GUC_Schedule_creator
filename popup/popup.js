@@ -26,7 +26,6 @@ const state = {
   selectedElective: '',   // a track+number key, e.g. "CPS031"
   lastSynced: null
 };
-
 // DOM References
 const elements = {
   statusBadge: document.getElementById('statusIndicator'),
@@ -42,6 +41,7 @@ const elements = {
   filterHint: document.getElementById('filterHint'),
   exportBtn: document.getElementById('exportPdfBtn'),
   exportBtnLabel: document.getElementById('exportBtnLabel'),
+  sizeToggleBtn: document.getElementById('sizeToggleBtn'),
   refreshBtn: document.getElementById('refreshBtn'),
   gridMatrix: document.getElementById('gridMatrix'),
   emptyState: document.getElementById('emptyState'),
@@ -83,7 +83,38 @@ let isExporting = false;
 // rest collapse behind a "+N more" chip. Replaces the old always-on
 // internal cell scrolling, which made overflow ambiguous (a scrollable
 // cell looks identical to a full one until you happen to hover it).
+// Fit-week mode compresses rows to ~55px, so only one card shows;
+// comfortable mode keeps the roomier 130px rows with two.
 const MAX_VISIBLE_CARDS = 2;
+const MAX_VISIBLE_CARDS_FIT = 1;
+
+// UI size modes. Chrome caps extension popups at 800x600 CSS px, so
+// "fit week" fills that area with compact 1fr rows — the whole Sat–Thu
+// week visible at once, no scrollbars. "Comfortable" is the roomier
+// v4.0 layout (fixed 130px rows, internal cell sliders). The choice is
+// persisted in chrome.storage.local under guc_ui_prefs.
+const UI_SIZE_STORAGE_KEY = 'guc_ui_prefs';
+
+function isFitMode() {
+  return document.body.classList.contains('size-fit');
+}
+
+function maxVisibleCards() {
+  return isFitMode() ? MAX_VISIBLE_CARDS_FIT : MAX_VISIBLE_CARDS;
+}
+
+function applyUiSize(size, persist = false) {
+  const fit = size !== 'comfortable';
+  document.body.classList.toggle('size-fit', fit);
+  const btn = elements.sizeToggleBtn;
+  if (btn) {
+    btn.setAttribute('aria-pressed', String(fit));
+    btn.title = fit ? 'Switch to comfortable cards (scrollable)' : 'Fit the whole week on screen';
+  }
+  if (persist) {
+    chrome.storage.local.set({ [UI_SIZE_STORAGE_KEY]: { size: fit ? 'fit' : 'comfortable' } });
+  }
+}
 
 // Today's day name (in WORKING_DAYS terms) so the grid can mark the
 // current day's row header. Empty on Friday — GUC's week is Sat–Thu.
@@ -123,6 +154,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 function attachEventListeners() {
+  // A tiny trailing debounce so rapidly flipping the filter dropdowns
+  // doesn't restart the grid's stagger animation on every change event.
+  let renderDebounceTimer = null;
+  const scheduleRender = (delay = 80) => {
+    clearTimeout(renderDebounceTimer);
+    renderDebounceTimer = setTimeout(() => renderSchedule(), delay);
+  };
+
   const onFilterChange = () => {
     persistUserPreferences();
     updateFilterBarState();
@@ -132,19 +171,19 @@ function attachEventListeners() {
     state.selectedTutorial = e.target.value;
     onFilterChange();
     updateTranslatorPanel();
-    renderSchedule();
+    scheduleRender();
   });
 
   elements.deSelect.addEventListener('change', (e) => {
     state.selectedGerman = e.target.value;
     onFilterChange();
-    renderSchedule();
+    scheduleRender();
   });
 
   elements.smSelect.addEventListener('change', (e) => {
     state.selectedElective = e.target.value;
     onFilterChange();
-    renderSchedule();
+    scheduleRender();
   });
 
   elements.exportBtn.addEventListener('click', handleExportClick);
@@ -158,6 +197,12 @@ function attachEventListeners() {
   }
   if (elements.noMatchClearBtn) {
     elements.noMatchClearBtn.addEventListener('click', clearAllFilters);
+  }
+  if (elements.sizeToggleBtn) {
+    elements.sizeToggleBtn.addEventListener('click', () => {
+      applyUiSize(isFitMode() ? 'comfortable' : 'fit', true);
+      renderSchedule();
+    });
   }
 
   // "+N more" chips: one delegated listener expands/collapses an
@@ -208,7 +253,11 @@ async function handleExportClick() {
 // State Persistence via chrome.storage.local
 async function loadPersistedState() {
   return new Promise((resolve) => {
-    chrome.storage.local.get(['guc_schedule_cache', 'guc_user_prefs'], (result) => {
+    chrome.storage.local.get(['guc_schedule_cache', 'guc_user_prefs', UI_SIZE_STORAGE_KEY], (result) => {
+      // Size preference applies immediately — even with no schedule data —
+      // so the popup never flashes the wrong density. Fit week is the
+      // default for anyone who has never chosen.
+      applyUiSize(result[UI_SIZE_STORAGE_KEY] && result[UI_SIZE_STORAGE_KEY].size);
       if (result.guc_user_prefs) {
         state.selectedTutorial = result.guc_user_prefs.tutorial || '';
         state.selectedGerman = result.guc_user_prefs.german || '';
@@ -253,6 +302,11 @@ function persistScheduleCache(slots, availableGroups, cohortName) {
 // "randomly empty" with nothing telling the student their pick is dead.
 // Runs whenever slots are (re)loaded; cleaned selections are persisted
 // immediately so the stale value can't come back.
+//
+// Deliberately NOT run when there is no cache at all: with empty group
+// lists every selection would look invalid, so a failed scan would wipe
+// the user's saved groups. They are instead re-validated here right
+// after every successful scan (see initScheduleScan).
 function sanitizeSelections() {
   if (!state.rawSlots.length) return false;
   let changed = false;
@@ -444,7 +498,14 @@ function populateDropdowns() {
 }
 
 function populateSelect(selectElement, items, selectedValue, defaultLabel) {
-  selectElement.innerHTML = `<option value="">${defaultLabel}</option>`;
+  // Built with createElement/textContent rather than innerHTML so option
+  // text is never parsed as markup, even if a parser label ever
+  // contained angle brackets.
+  selectElement.textContent = '';
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = defaultLabel;
+  selectElement.appendChild(placeholder);
   items.forEach(item => {
     const option = document.createElement('option');
     option.value = item;
@@ -687,7 +748,7 @@ function renderSchedule() {
           cell.appendChild(createSlotCard(slot));
         });
 
-        const hiddenCount = matchingSlots.length - MAX_VISIBLE_CARDS;
+        const hiddenCount = matchingSlots.length - maxVisibleCards();
         if (hiddenCount > 0) {
           cell.classList.add('has-more');
           const chip = document.createElement('button');

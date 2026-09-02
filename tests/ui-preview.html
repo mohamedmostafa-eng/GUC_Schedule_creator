@@ -21,7 +21,9 @@
   .preview-bar a { color: #38bdf8; }
 </style>
 </head>
-<body>
+<!-- size-fit is the default density (whole week, no scrollbars); popup.js
+     switches it to comfortable if the student last chose that. -->
+<body class="size-fit">
   <div class="preview-bar">UI preview — <a href="ui-preview.html">loaded</a> · <a href="ui-preview.html?state=stacked">stacked</a> · <a href="ui-preview.html?state=nomatch">no-match</a> · <a href="ui-preview.html?state=empty">empty/error</a></div>
 
   <div class="app-container">
@@ -43,6 +45,10 @@
       </div>
 
       <div class="actions">
+        <button id="sizeToggleBtn" class="btn btn-icon" aria-pressed="true" title="Fit the whole week on screen" aria-label="Toggle between fit-the-whole-week and comfortable card sizes">
+          <svg class="icon-minimize" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="4 14 10 14 10 20"></polyline><polyline points="20 10 14 10 14 4"></polyline><line x1="14" y1="10" x2="21" y2="3"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+          <svg class="icon-expand" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+        </button>
         <button id="refreshBtn" class="btn btn-secondary" title="Re-read the schedule from the open GUC tab" aria-label="Force re-scan the schedule from the open GUC tab">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
           Force Re-scan

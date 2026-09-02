@@ -12,6 +12,26 @@ analytics, and no network request of any kind built into this extension.
 
 ---
 
+## What's new in v4.1
+
+- **The whole week fits on screen by default.** The popup now fills
+  Chrome's maximum size (800×600) with a *fit week* layout: the six day
+  rows flex to the available height, so Saturday through Thursday are all
+  visible at once with **no horizontal or vertical scrollbar** anywhere.
+  Cards go compact (course, type, room) and crowded cells show one card
+  plus a **+N more** chip.
+- **Size toggle.** The icon button next to Force Re-scan switches between
+  *fit week* and the roomier **comfortable** layout from v4.0 (130px
+  cards, scrollable) — the minimized look. In fit mode the +N more chip
+  overlays the whole grid area to list every colliding class without
+  moving the layout a pixel. Your choice is remembered.
+- **Polish from the community audit:** dropdown options are built with
+  DOM APIs instead of `innerHTML`, rapid filter flips no longer restart
+  the grid's entrance animation (80 ms debounce), and the origin of the
+  compound-fixture `ME-11` group key is now documented in the test suite.
+
+---
+
 ## What's new in v4.0
 
 - **The Tutorial/Practical dropdown only offers real cohort groups.** The
@@ -57,8 +77,8 @@ analytics, and no network request of any kind built into this extension.
 
   | | |
   |---|---|
-  | ![Loaded timetable](screenshots/ui-loaded.png) | ![Stacked cell, collapsed](screenshots/ui-stacked.png) |
-  | ![Stacked cell, expanded](screenshots/ui-stacked-expanded.png) | ![No matching classes](screenshots/ui-no-match.png) |
+  | ![Fit-week default](screenshots/ui-loaded.png) | ![Comfortable (minimized) mode](screenshots/ui-comfortable.png) |
+  | ![Stacked cell, expanded overlay](screenshots/ui-stacked-expanded.png) | ![No matching classes](screenshots/ui-no-match.png) |
   | ![Empty / error state](screenshots/ui-empty.png) | |
 
 ---
