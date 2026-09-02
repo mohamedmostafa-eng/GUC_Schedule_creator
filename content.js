@@ -420,12 +420,27 @@ function extractTokensAndRegister(text, day, period, colspan, slotsArray, groups
   const courseCode = courseMatch ? courseMatch[1].toUpperCase().replace(/\s+/g, ' ').trim() : 'GENERAL';
 
   // Register discovered groups for the popup's dropdowns.
+  //
+  // German-only tutorial eligibility (v4.0): a T/P tag sitting on a
+  // German-level row is the GERMAN course's own parallel section number
+  // (the portal stacks one row per German group inside the same period
+  // cell, e.g. DE303 rows tagged T016..T024). Those numbers live in the
+  // German class's numbering space, not the cohort's — registering them as
+  // available tutorial groups offered students group options that, when
+  // picked as their "Tutorial / Practical Group", matched none of their
+  // real tutorials and silently emptied the grid. So a group key is only
+  // eligible for the tutorials dropdown if it appears on at least one
+  // non-German row; German rows contribute only their LEVEL. The filter
+  // engine in popup.js still matches German rows by tag when a selected
+  // cohort group happens to coincide with one — that behavior is
+  // unchanged (covered by the FILTER assertions in tests/run-tests.js).
+  const isGermanRow = GERMAN_LEVELS.includes(normalizeCourseCode(courseCode));
   classifiedTokens.forEach(tok => {
     if (tok.category === 'german') {
       groupsTracker.german.add(tok.level);
     } else if (tok.category === 'elective') {
       groupsTracker.electives.add(tok.track + (tok.number ? tok.number : ''));
-    } else if (tok.category === 'tutorial' || tok.category === 'practical') {
+    } else if ((tok.category === 'tutorial' || tok.category === 'practical') && !isGermanRow) {
       groupsTracker.tutorials.add(groupTokenKey(tok));
     }
   });
