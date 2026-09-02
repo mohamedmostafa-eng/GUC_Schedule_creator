@@ -37,7 +37,8 @@
   <div id="fixtureRoot"></div>
 
   <!-- Minimal stand-ins for the element IDs popup.js grabs at load time,
-       so its init path can't crash on this page. -->
+       so its init path can't crash on this page. Kept in sync with the
+       real popup.html markup. -->
   <div class="popup-stubs">
     <span id="statusIndicator"></span>
     <span id="cohortNameChip"></span>
@@ -47,11 +48,16 @@
     <span id="tutTranslator"></span>
     <select id="deSelect"></select>
     <select id="smSelect"></select>
-    <button id="exportPdfBtn"></button>
+    <span id="filterHint"></span>
+    <button id="clearFiltersBtn"></button>
+    <button id="exportPdfBtn"><span id="exportBtnLabel"></span></button>
     <button id="refreshBtn"></button>
     <div id="gridMatrix"></div>
     <div id="emptyState"></div>
+    <div id="noMatchState"><button id="noMatchClearBtn"></button></div>
+    <div id="scanOverlay"></div>
     <span id="syncTimestamp"></span>
+    <div id="toast"><span id="toastIcon"></span><span id="toastText"></span></div>
   </div>
 
   <script>

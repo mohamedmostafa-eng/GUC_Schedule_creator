@@ -1,5 +1,5 @@
 /**
- * GUC Schedule Matrix: Controller, State Manager & PDF Exporter (v2.1.0)
+ * GUC Schedule Matrix: Controller, State Manager & PDF Exporter (v4.0.0)
  *
  * WORKING_DAYS / PERIODS / GERMAN_LEVELS / groupTokenKey all come from
  * shared-constants.js, loaded before this file in popup.html — this file
@@ -12,7 +12,9 @@ const GUC_SCHEDULE_URL = 'https://apps.guc.edu.eg/student_ext/Scheduling/General
 // Bump whenever the parser's slot shape or the filter's semantics change:
 // chrome.storage.local survives extension reloads, so slots cached by an
 // older parser would silently mask the fix until a manual re-scan.
-const SCHEDULE_CACHE_VERSION = 3;
+// v4: German-row section tags no longer register as tutorial groups, and
+// cached selections are now validated against the parsed group lists.
+const SCHEDULE_CACHE_VERSION = 4;
 
 // Application State
 const state = {
@@ -36,13 +38,19 @@ const elements = {
   tutTranslator: document.getElementById('tutTranslator'),
   deSelect: document.getElementById('deSelect'),
   smSelect: document.getElementById('smSelect'),
+  clearFiltersBtn: document.getElementById('clearFiltersBtn'),
+  filterHint: document.getElementById('filterHint'),
   exportBtn: document.getElementById('exportPdfBtn'),
+  exportBtnLabel: document.getElementById('exportBtnLabel'),
   refreshBtn: document.getElementById('refreshBtn'),
   gridMatrix: document.getElementById('gridMatrix'),
   emptyState: document.getElementById('emptyState'),
+  noMatchState: document.getElementById('noMatchState'),
+  noMatchClearBtn: document.getElementById('noMatchClearBtn'),
   syncTimestamp: document.getElementById('syncTimestamp'),
   toast: document.getElementById('toast'),
   toastText: document.getElementById('toastText'),
+  toastIcon: document.getElementById('toastIcon'),
   filterBar: document.querySelector('.filter-bar'),
   scanOverlay: document.getElementById('scanOverlay')
 };
@@ -69,13 +77,38 @@ const TYPE_ICONS = {
 };
 
 let toastHideTimer = null;
+let isExporting = false;
+
+// Max slot cards rendered visibly inside one timetable cell before the
+// rest collapse behind a "+N more" chip. Replaces the old always-on
+// internal cell scrolling, which made overflow ambiguous (a scrollable
+// cell looks identical to a full one until you happen to hover it).
+const MAX_VISIBLE_CARDS = 2;
+
+// Today's day name (in WORKING_DAYS terms) so the grid can mark the
+// current day's row header. Empty on Friday — GUC's week is Sat–Thu.
+const TODAY_NAME = (() => {
+  const names = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const name = names[new Date().getDay()] || '';
+  return WORKING_DAYS.includes(name) ? name : '';
+})();
 
 // Shows a small transient confirmation at the bottom of the popup, e.g.
-// after a PDF export completes. Auto-dismisses after `duration` ms.
-function showToast(message, duration = 3000) {
-  if (!elements.toast) return;
+// after a PDF export completes. type 'error' restyles the toast and swaps
+// the icon. Auto-dismisses after `duration` ms.
+const TOAST_ICONS = {
+  success: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>',
+  error: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path></svg>'
+};
+
+function showToast(message, type = 'success', duration = 3200) {
+  if (!elements.toast || !elements.toastText) return;
   clearTimeout(toastHideTimer);
   elements.toastText.textContent = message;
+  elements.toast.classList.toggle('toast-error', type === 'error');
+  if (elements.toastIcon) {
+    elements.toastIcon.innerHTML = TOAST_ICONS[type] || TOAST_ICONS.success;
+  }
   elements.toast.classList.add('toast-visible');
   toastHideTimer = setTimeout(() => {
     elements.toast.classList.remove('toast-visible');
@@ -90,34 +123,86 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 function attachEventListeners() {
+  const onFilterChange = () => {
+    persistUserPreferences();
+    updateFilterBarState();
+  };
+
   elements.tutSelect.addEventListener('change', (e) => {
     state.selectedTutorial = e.target.value;
-    persistUserPreferences();
+    onFilterChange();
     updateTranslatorPanel();
     renderSchedule();
   });
 
   elements.deSelect.addEventListener('change', (e) => {
     state.selectedGerman = e.target.value;
-    persistUserPreferences();
+    onFilterChange();
     renderSchedule();
   });
 
   elements.smSelect.addEventListener('change', (e) => {
     state.selectedElective = e.target.value;
-    persistUserPreferences();
+    onFilterChange();
     renderSchedule();
   });
 
-  elements.exportBtn.addEventListener('click', () => {
-    elements.exportBtn.classList.add('btn-flash');
-    setTimeout(() => elements.exportBtn.classList.remove('btn-flash'), 220);
-    generateAndDownloadPDF();
-  });
+  elements.exportBtn.addEventListener('click', handleExportClick);
   elements.refreshBtn.addEventListener('click', () => initScheduleScan(true));
   elements.openScheduleBtn.addEventListener('click', () => {
     chrome.tabs.create({ url: GUC_SCHEDULE_URL });
   });
+
+  if (elements.clearFiltersBtn) {
+    elements.clearFiltersBtn.addEventListener('click', clearAllFilters);
+  }
+  if (elements.noMatchClearBtn) {
+    elements.noMatchClearBtn.addEventListener('click', clearAllFilters);
+  }
+
+  // "+N more" chips: one delegated listener expands/collapses an
+  // overflowing cell in place — no re-render needed, and no nested
+  // scrollbar ambiguity.
+  elements.gridMatrix.addEventListener('click', (e) => {
+    const chip = e.target.closest('.more-chip');
+    if (!chip) return;
+    const cell = chip.closest('.matrix-slot');
+    if (!cell) return;
+    const expanded = cell.classList.toggle('expanded');
+    chip.setAttribute('aria-expanded', String(expanded));
+    const label = chip.querySelector('.more-chip-label');
+    if (label) label.textContent = expanded ? 'Show less' : `+${chip.dataset.hiddenCount} more`;
+  });
+}
+
+// Export flow with deliberate feedback: the button shows a busy state
+// while the PDF renders, success is confirmed by a toast, and failures
+// land in an error toast instead of a dead silent click.
+async function handleExportClick() {
+  if (isExporting) return;
+
+  if (!getFilteredSlots().length) {
+    showToast('Nothing to export yet — pick your tutorial, German level or elective first.', 'error', 4500);
+    return;
+  }
+
+  isExporting = true;
+  const btn = elements.exportBtn;
+  btn.disabled = true;
+  btn.classList.add('btn-busy');
+  if (elements.exportBtnLabel) elements.exportBtnLabel.textContent = 'Exporting…';
+
+  try {
+    generateAndDownloadPDF();
+    showToast('PDF exported — check your downloads.');
+  } catch (err) {
+    showToast('PDF export failed: ' + (err && err.message ? err.message : String(err)), 'error', 5000);
+  } finally {
+    isExporting = false;
+    btn.classList.remove('btn-busy');
+    if (elements.exportBtnLabel) elements.exportBtnLabel.textContent = 'Export PDF';
+    btn.disabled = state.rawSlots.length === 0;
+  }
 }
 
 // State Persistence via chrome.storage.local
@@ -134,6 +219,7 @@ async function loadPersistedState() {
         state.availableGroups = result.guc_schedule_cache.availableGroups || { tutorials: [], german: [], electives: [] };
         state.cohortName = result.guc_schedule_cache.cohortName || '';
         state.lastSynced = result.guc_schedule_cache.timestamp || null;
+        sanitizeSelections();
         updateUIWithCachedData();
       }
       resolve();
@@ -160,6 +246,62 @@ function persistScheduleCache(slots, availableGroups, cohortName) {
   elements.syncTimestamp.textContent = `Synced at ${timestamp}`;
 }
 
+// Invalid cached selections are cleared instead of being kept: a saved
+// tutorial/level/elective from an older parser (or from a different
+// cohort page) can silently stop being offered. Keeping it would filter
+// the grid against a group that no longer exists — the view looks
+// "randomly empty" with nothing telling the student their pick is dead.
+// Runs whenever slots are (re)loaded; cleaned selections are persisted
+// immediately so the stale value can't come back.
+function sanitizeSelections() {
+  if (!state.rawSlots.length) return false;
+  let changed = false;
+  if (state.selectedTutorial && !state.availableGroups.tutorials.includes(state.selectedTutorial)) {
+    state.selectedTutorial = '';
+    changed = true;
+  }
+  if (state.selectedGerman && !state.availableGroups.german.includes(state.selectedGerman)) {
+    state.selectedGerman = '';
+    changed = true;
+  }
+  if (state.selectedElective && !state.availableGroups.electives.includes(state.selectedElective)) {
+    state.selectedElective = '';
+    changed = true;
+  }
+  if (changed) persistUserPreferences();
+  return changed;
+}
+
+// Resets every dropdown to "no filter", persists, and re-renders.
+function clearAllFilters() {
+  state.selectedTutorial = '';
+  state.selectedGerman = '';
+  state.selectedElective = '';
+  persistUserPreferences();
+  elements.tutSelect.value = '';
+  elements.deSelect.value = '';
+  elements.smSelect.value = '';
+  updateTranslatorPanel();
+  updateFilterBarState();
+  renderSchedule();
+}
+
+// The Clear-filters control only makes sense while at least one filter is
+// active — hide it otherwise, and say how many filters are shaping the
+// grid right now.
+function updateFilterBarState() {
+  const activeCount = [state.selectedTutorial, state.selectedGerman, state.selectedElective]
+    .filter(Boolean).length;
+
+  if (elements.clearFiltersBtn) {
+    elements.clearFiltersBtn.classList.toggle('hidden', activeCount === 0);
+  }
+  if (elements.filterHint) {
+    elements.filterHint.textContent =
+      activeCount === 0 ? '' : (activeCount === 1 ? '1 filter active' : `${activeCount} filters active`);
+  }
+}
+
 // Active Tab Scraping Orchestration
 async function initScheduleScan(isForce = false) {
   updateStatus('scanning', 'Scanning Tab...');
@@ -174,7 +316,7 @@ async function initScheduleScan(isForce = false) {
         return;
       }
       updateStatus('error', 'GUC Tab Not Detected');
-      showError('Open your GUC schedule page in the active tab, then click "Force Re-scan".', true);
+      showError("The current tab isn't on apps.guc.edu.eg. Open your GUC schedule page, then press Force Re-scan.", true);
       return;
     }
 
@@ -188,7 +330,7 @@ async function initScheduleScan(isForce = false) {
       }
       const errMsg = (response && response.error)
         ? response.error
-        : 'Could not read the schedule table. Make sure you are logged in and on the schedule page, then click "Force Re-scan" again.';
+        : "Couldn't read the schedule table. Log in to the portal, open your schedule page, wait for it to finish loading, then Force Re-scan.";
       showError(errMsg, true);
       return;
     }
@@ -197,6 +339,7 @@ async function initScheduleScan(isForce = false) {
     state.availableGroups = response.data.availableGroups;
     state.cohortName = response.data.cohortName || '';
     persistScheduleCache(state.rawSlots, state.availableGroups, state.cohortName);
+    sanitizeSelections();
 
     populateDropdowns();
     updateTranslatorPanel();
@@ -268,7 +411,7 @@ function hideError() {
 
 function updateUIWithCachedData() {
   if (state.lastSynced) {
-    elements.syncTimestamp.textContent = `Cached: ${state.lastSynced}`;
+    elements.syncTimestamp.textContent = `Offline cache · saved ${state.lastSynced}`;
   }
   populateDropdowns();
   updateTranslatorPanel();
@@ -288,15 +431,16 @@ function renderCohortName() {
 }
 
 function populateDropdowns() {
-  populateSelect(elements.tutSelect, state.availableGroups.tutorials, state.selectedTutorial, 'Select Tutorial/Practical');
-  populateSelect(elements.deSelect, state.availableGroups.german, state.selectedGerman, 'Select German');
-  populateSelect(elements.smSelect, state.availableGroups.electives, state.selectedElective, 'Select Elective');
+  populateSelect(elements.tutSelect, state.availableGroups.tutorials, state.selectedTutorial, 'Pick your tutorial…');
+  populateSelect(elements.deSelect, state.availableGroups.german, state.selectedGerman, 'Pick your German level…');
+  populateSelect(elements.smSelect, state.availableGroups.electives, state.selectedElective, 'Pick your elective…');
 
   const hasData = state.rawSlots.length > 0;
   elements.tutSelect.disabled = !hasData;
   elements.deSelect.disabled = !hasData;
   elements.smSelect.disabled = !hasData;
   elements.exportBtn.disabled = !hasData;
+  updateFilterBarState();
 }
 
 function populateSelect(selectElement, items, selectedValue, defaultLabel) {
@@ -475,16 +619,19 @@ function parseGroupKey(key) {
 // 5x5 Matrix Rendering Engine (Saturday first, per GUC's Sat–Thu week)
 function renderSchedule() {
   const filteredSlots = getFilteredSlots();
+  const hasData = state.rawSlots.length > 0;
+  const hasVisible = filteredSlots.length > 0;
 
-  if (!state.rawSlots.length) {
-    elements.emptyState.classList.remove('hidden');
-    elements.gridMatrix.classList.add('hidden');
-    return;
-  }
+  // Three mutually exclusive main views: no data at all (empty state),
+  // data but the filters match nothing (no-match state), or the grid.
+  if (elements.emptyState) elements.emptyState.classList.toggle('hidden', hasData);
+  if (elements.noMatchState) elements.noMatchState.classList.toggle('hidden', !hasData || hasVisible);
+  elements.gridMatrix.classList.toggle('hidden', !hasData || !hasVisible);
+  if (!hasData || !hasVisible) return;
 
-  elements.emptyState.classList.add('hidden');
-  elements.gridMatrix.classList.remove('hidden');
   elements.gridMatrix.innerHTML = '';
+  elements.gridMatrix.setAttribute('aria-rowcount', String(WORKING_DAYS.length + 1));
+  elements.gridMatrix.setAttribute('aria-colcount', String(PERIODS.length + 1));
 
   // 1. Header: Top-left Corner Cell
   const cornerCell = document.createElement('div');
@@ -515,6 +662,7 @@ function renderSchedule() {
     dayLabelCell.setAttribute('aria-rowindex', rowIdx + 2);
     dayLabelCell.style.animationDelay = rowDelay;
     dayLabelCell.innerHTML = `<span>${day}</span>`;
+    if (day === TODAY_NAME) dayLabelCell.classList.add('day-today');
     elements.gridMatrix.appendChild(dayLabelCell);
 
     PERIODS.forEach((period, colIdx) => {
@@ -531,10 +679,26 @@ function renderSchedule() {
         cell.classList.add('slot-free');
         cell.innerHTML = '<span class="free-indicator">Free</span>';
       } else {
+        // All cards are always in the DOM (CSS collapses everything past
+        // MAX_VISIBLE_CARDS while the cell isn't .expanded), so expanding
+        // a cell is a pure class toggle — no re-render.
         matchingSlots.forEach(slot => {
-          const card = createSlotCard(slot);
-          cell.appendChild(card);
+          cell.appendChild(createSlotCard(slot));
         });
+
+        const hiddenCount = matchingSlots.length - MAX_VISIBLE_CARDS;
+        if (hiddenCount > 0) {
+          cell.classList.add('has-more');
+          const chip = document.createElement('button');
+          chip.type = 'button';
+          chip.className = 'more-chip';
+          chip.dataset.hiddenCount = String(hiddenCount);
+          chip.setAttribute('aria-expanded', 'false');
+          chip.innerHTML =
+            `<span class="more-chip-label">+${hiddenCount} more</span>` +
+            '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>';
+          cell.appendChild(chip);
+        }
       }
       elements.gridMatrix.appendChild(cell);
     });
@@ -625,8 +789,9 @@ const PDF_TYPE_MONOGRAM = {
 function generateAndDownloadPDF() {
   const filteredSlots = getFilteredSlots();
   if (!filteredSlots.length) {
-    alert('No active slots available to export. Please select your groups.');
-    return;
+    // handleExportClick screens for this before entering the busy state;
+    // this throw only guards direct/programmatic calls.
+    throw new Error('no classes in the current view');
   }
 
   const canvas = renderScheduleCanvas(filteredSlots);
@@ -645,8 +810,6 @@ function generateAndDownloadPDF() {
   downloadAnchor.click();
   document.body.removeChild(downloadAnchor);
   URL.revokeObjectURL(downloadUrl);
-
-  showToast('PDF downloaded');
 }
 
 // Draws the full printable page — title block plus the 6-day x 5-period

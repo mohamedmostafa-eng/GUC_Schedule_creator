@@ -1,4 +1,16 @@
 /* --------------------------------------------------------------------------
+   GUC Timetable Matrix — popup styles (v4.0)
+
+   Design notes:
+   - One accent (sky blue) owns "action"; the five slot colors only classify
+     class types. Nothing else competes for attention.
+   - Cells never scroll internally: overflow past 2 cards collapses into a
+     "+N more" chip (see .matrix-slot / .more-chip).
+   - All interactive elements have visible :focus-visible rings, and every
+     animation is disabled under prefers-reduced-motion.
+   -------------------------------------------------------------------------- */
+
+/* --------------------------------------------------------------------------
    Design Tokens & Color Hierarchy
    -------------------------------------------------------------------------- */
 :root {
@@ -14,6 +26,13 @@
   --text-primary: #f9fafb;
   --text-secondary: #9ca3af;
   --text-muted: #6b7280;
+
+  --accent: #38bdf8;
+  --accent-soft: rgba(56, 189, 248, 0.12);
+  --accent-border: rgba(56, 189, 248, 0.35);
+
+  --ok: #34d399;
+  --danger: #f87171;
 
   /* Slot Accent Themes */
   --slot-lecture-bg: #1e293b;
@@ -38,7 +57,7 @@
 
   --slot-free-bg: #11182780;
   --slot-free-border: #1f2937;
-  --slot-free-text: #374151;
+  --slot-free-text: #4b5563;
 }
 
 /* --------------------------------------------------------------------------
@@ -67,7 +86,10 @@ body {
 .filter-bar,
 .footer,
 .status-badge,
-.cohort-chip {
+.cohort-chip,
+.sync-status,
+.footer-hint,
+.empty-state {
   user-select: none;
 }
 
@@ -78,33 +100,37 @@ body {
 }
 
 /* --------------------------------------------------------------------------
-   Header Bar & Status
+   Header: identity & status left, deliberate actions right
    -------------------------------------------------------------------------- */
 .header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
-  border-radius: 10px;
-  padding: 10px 16px;
+  border-radius: 12px;
+  padding: 12px 16px;
 }
 
 .branding {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
 }
 
 .logo-badge {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 9px;
-  border-radius: 8px;
+  padding: 7px 10px;
+  border-radius: 9px;
   background: var(--bg-surface-elevated);
   border: 1px solid var(--border-muted);
-  color: #38bdf8;
+  color: var(--accent);
+  flex-shrink: 0;
 }
 
 .logo-badge .logo-wordmark {
@@ -114,10 +140,15 @@ body {
   color: var(--text-secondary);
 }
 
+.title-wrap {
+  min-width: 0;
+}
+
 .title-wrap h1 {
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 16px;
+  font-weight: 750;
   letter-spacing: -0.2px;
+  line-height: 1.2;
 }
 
 .title-meta {
@@ -125,18 +156,19 @@ body {
   align-items: center;
   flex-wrap: wrap;
   gap: 6px;
-  margin-top: 3px;
+  margin-top: 4px;
 }
 
 .status-badge {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   font-size: 10px;
-  font-weight: 600;
-  padding: 2px 7px;
-  border-radius: 4px;
+  font-weight: 650;
+  padding: 3px 8px;
+  border-radius: 999px;
   text-transform: uppercase;
+  letter-spacing: 0.4px;
 }
 
 .status-icon {
@@ -158,49 +190,65 @@ body {
   font-size: 10.5px;
   font-weight: 600;
   color: #7dd3fc;
-  background: rgba(56, 189, 248, 0.12);
-  border: 1px solid rgba(56, 189, 248, 0.25);
-  padding: 2px 8px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+  padding: 2px 9px;
   border-radius: 999px;
-  max-width: 260px;
+  max-width: 280px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.actions .btn {
+/* Buttons — one shared base, two deliberate weights. Primary (filled) is
+   reserved for Export; Re-scan and in-content buttons stay secondary. */
+.btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   font-size: 12px;
-  font-weight: 600;
-  padding: 6px 12px;
-  border-radius: 6px;
+  font-weight: 650;
+  font-family: inherit;
+  min-height: 30px;
+  padding: 6px 13px;
+  border-radius: 8px;
   border: 1px solid var(--border-muted);
   background: var(--bg-surface-elevated);
   color: var(--text-primary);
   cursor: pointer;
-  transition: all 0.15s ease-in-out;
+  transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out,
+    color 0.15s ease-in-out, transform 0.1s ease-in-out;
 }
 
-.actions .btn:hover:not(:disabled) {
+.btn:hover:not(:disabled) {
   background: var(--bg-surface-hover);
   border-color: var(--border-strong);
 }
 
-.actions .btn:disabled {
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
 
-.actions .btn:active:not(:disabled) {
-  transform: scale(0.97);
+.btn-primary {
+  background: #0284c7;
+  border-color: #0ea5e9;
+  color: #ffffff;
 }
 
-.btn-flash {
-  background: #0369a1 !important;
-  border-color: #0ea5e9 !important;
-  color: #fff !important;
+.btn-primary:hover:not(:disabled) {
+  background: #0369a1;
+  border-color: #38bdf8;
+}
+
+.btn-busy {
+  opacity: 0.75;
+  cursor: progress;
 }
 
 @keyframes spin {
@@ -211,13 +259,24 @@ body {
    Error Banner
    -------------------------------------------------------------------------- */
 .error-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
   background: #3b1414;
   border: 1px solid #7f1d1d;
   color: #fca5a5;
   font-size: 12px;
-  line-height: 1.4;
-  padding: 8px 12px;
-  border-radius: 8px;
+  line-height: 1.45;
+  padding: 10px 12px;
+  border-radius: 10px;
+}
+
+.error-icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.error-body {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -234,16 +293,16 @@ body {
 }
 
 /* --------------------------------------------------------------------------
-   Filter Bar
+   Filter Bar: one context row + the three dropdown filters
    -------------------------------------------------------------------------- */
 .filter-bar {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
-  border-radius: 10px;
-  padding: 10px 14px;
+  border-radius: 12px;
+  padding: 10px 14px 12px;
   transition: opacity 0.15s ease;
 }
 
@@ -252,13 +311,51 @@ body {
   pointer-events: none;
 }
 
+.filter-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-height: 18px;
+}
+
+.filter-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.filter-hint {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--accent);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.clear-filters {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.filter-controls {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
 .select-group {
   display: flex;
   flex-direction: column;
   gap: 6px;
   padding: 4px 6px;
-  border-radius: 6px;
+  border-radius: 8px;
   transition: background-color 0.15s ease;
+  min-width: 0;
 }
 
 .select-group:hover {
@@ -286,18 +383,25 @@ body {
 }
 
 .select-group select {
+  width: 100%;
   background: var(--bg-surface-elevated);
   border: 1px solid var(--border-muted);
   color: var(--text-primary);
-  padding: 6px 10px;
-  border-radius: 6px;
+  padding: 7px 10px;
+  border-radius: 8px;
   font-size: 12px;
+  font-family: inherit;
   outline: none;
   transition: border-color 0.15s ease;
+  cursor: pointer;
+}
+
+.select-group select:hover:not(:disabled) {
+  border-color: var(--border-strong);
 }
 
 .select-group select:focus {
-  border-color: #38bdf8;
+  border-color: var(--accent);
 }
 
 .select-group select:disabled {
@@ -308,10 +412,12 @@ body {
 /* --------------------------------------------------------------------------
    Focus Visibility (keyboard navigation)
    -------------------------------------------------------------------------- */
-.actions .btn:focus-visible,
+.btn:focus-visible,
 .select-group select:focus-visible,
-.btn-link:focus-visible {
-  outline: 2px solid #38bdf8;
+.btn-link:focus-visible,
+.more-chip:focus-visible,
+.no-match-clear:focus-visible {
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -321,7 +427,7 @@ body {
 .timetable-wrapper {
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 12px;
   min-height: 420px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
@@ -360,24 +466,32 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 6px;
   color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 12.5px;
+  font-weight: 650;
   z-index: 5;
+  text-align: center;
+}
+
+.scan-sub {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
 }
 
 .spinner {
   width: 26px;
   height: 26px;
   border: 3px solid var(--border-muted);
-  border-top-color: #38bdf8;
+  border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
+  margin-bottom: 4px;
 }
 
 .grid-cell {
-  border-radius: 6px;
+  border-radius: 8px;
   padding: 6px 8px;
   display: flex;
   flex-direction: column;
@@ -386,33 +500,63 @@ body {
   min-height: 64px;
 }
 
-/* Actual timetable slot cells get a FIXED height (not min-height) with
-   internal scrolling. Previously these only had a min-height, so 3+
-   colliding slots (e.g. bi-weekly alternating labs) grew the cell and
-   bled into the row below instead of staying contained. */
+/* Actual timetable slot cells get a FIXED height with the overflow
+   collapsed behind a "+N more" chip — cells no longer scroll internally
+   (an ambiguous affordance) and no longer bleed into the row below. */
 .matrix-slot {
   height: 130px;
   min-height: 130px;
   justify-content: flex-start;
-  overflow-y: auto;
+  overflow: hidden;
   gap: 4px;
 }
 
 .matrix-slot:not(.slot-free) {
   border: 1px solid var(--border-subtle);
+  background: rgba(31, 41, 55, 0.25);
 }
 
-.matrix-slot::-webkit-scrollbar {
-  width: 4px;
+/* Everything past the first two cards stays in the DOM but invisible
+   while the cell is collapsed; .expanded reveals it and lets the cell
+   (and its row) grow to fit. */
+.matrix-slot:not(.expanded) .slot-card:nth-child(n+4) {
+  display: none;
 }
 
-.matrix-slot::-webkit-scrollbar-thumb {
-  background: var(--border-muted);
-  border-radius: 2px;
+.matrix-slot.expanded {
+  height: auto;
+  min-height: 130px;
+  z-index: 3;
+  background: var(--bg-surface-elevated);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.45);
 }
 
-.matrix-slot::-webkit-scrollbar-track {
-  background: transparent;
+/* "+N more" chip — a button, so it is keyboard-reachable and announces
+   its expanded state to screen readers. */
+.more-chip {
+  margin-top: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  padding: 4px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: inherit;
+  color: var(--text-secondary);
+  background: var(--bg-surface-elevated);
+  border: 1px dashed var(--border-strong);
+  border-radius: 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 0.12s ease, border-color 0.12s ease, background-color 0.12s ease;
+}
+
+.more-chip:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-soft);
 }
 
 /* Headers */
@@ -456,6 +600,15 @@ body {
   justify-content: center;
 }
 
+/* Today's row header gets the accent — a quiet way to orient "now"
+   inside a 6-day grid. */
+.day-header-cell.day-today {
+  color: var(--accent);
+  border-color: var(--accent-border);
+  background: linear-gradient(0deg, var(--accent-soft), var(--accent-soft)),
+    var(--bg-surface-elevated);
+}
+
 /* Free Slots */
 .slot-free {
   background: var(--slot-free-bg);
@@ -465,7 +618,7 @@ body {
 }
 
 .free-indicator {
-  color: var(--text-muted);
+  color: var(--slot-free-text);
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
@@ -477,7 +630,7 @@ body {
   width: 100%;
   flex-shrink: 0;
   padding: 6px 8px;
-  border-radius: 5px;
+  border-radius: 6px;
   border-left: 3.5px solid transparent;
   display: flex;
   flex-direction: column;
@@ -509,6 +662,7 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 6px;
   margin-top: 4px;
   font-size: 10px;
 }
@@ -519,6 +673,10 @@ body {
   gap: 3px;
   font-weight: 500;
   opacity: 0.85;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .card-type .type-icon {
@@ -528,8 +686,9 @@ body {
 .card-room {
   font-weight: 700;
   background: rgba(0, 0, 0, 0.25);
-  padding: 1px 4px;
-  border-radius: 3px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  flex-shrink: 0;
 }
 
 /* Badge Color Themes */
@@ -564,21 +723,30 @@ body {
 }
 
 /* --------------------------------------------------------------------------
-   Empty State & Footer
+   Empty States (no data / no filter matches)
    -------------------------------------------------------------------------- */
 .empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 380px;
+  min-height: 380px;
   text-align: center;
   color: var(--text-secondary);
+  padding: 16px;
 }
 
 .empty-icon {
-  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  margin-bottom: 14px;
+  border-radius: 50%;
   color: var(--text-muted);
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
 }
 
 .empty-state h3 {
@@ -589,45 +757,65 @@ body {
 
 .empty-state p {
   font-size: 12px;
-  max-width: 320px;
-  line-height: 1.5;
+  max-width: 380px;
+  line-height: 1.55;
+}
+
+.empty-state strong {
+  color: var(--text-secondary);
 }
 
 .empty-state code {
   background: var(--bg-surface-elevated);
   padding: 2px 6px;
   border-radius: 4px;
-  color: #38bdf8;
+  color: var(--accent);
+}
+
+.no-match-clear {
+  margin-top: 14px;
 }
 
 .hidden {
   display: none !important;
 }
 
+/* --------------------------------------------------------------------------
+   Footer: data freshness + the privacy promise
+   -------------------------------------------------------------------------- */
 .footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 10px;
   font-size: 11px;
   color: var(--text-muted);
   padding: 0 4px;
+  flex-wrap: wrap;
 }
 
-.btn-link {
-  background: none;
-  border: none;
-  color: #38bdf8;
-  font-size: 11px;
-  cursor: pointer;
-  text-decoration: underline;
+.sync-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
-.btn-link:hover {
-  color: #7dd3fc;
+/* A small status dot before the timestamp: grey while never synced. */
+.sync-status::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.footer-hint {
+  font-size: 10.5px;
 }
 
 /* --------------------------------------------------------------------------
-   Toast (transient confirmation, e.g. after PDF export)
+   Toast (transient confirmation / error feedback)
    -------------------------------------------------------------------------- */
 .toast {
   position: fixed;
@@ -637,13 +825,14 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
+  max-width: calc(100% - 32px);
   background: var(--bg-surface-elevated);
   border: 1px solid var(--border-strong);
   color: var(--text-primary);
   font-size: 12px;
   font-weight: 600;
-  padding: 8px 14px;
-  border-radius: 8px;
+  padding: 9px 14px;
+  border-radius: 9px;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
   opacity: 0;
   pointer-events: none;
@@ -657,6 +846,59 @@ body {
 }
 
 .toast-icon {
-  color: #34d399;
+  color: var(--ok);
   flex-shrink: 0;
+  display: inline-flex;
+}
+
+/* Error variant: red icon + red border so a failed export never reads as
+   a success. */
+.toast.toast-error {
+  border-color: #7f1d1d;
+}
+
+.toast.toast-error .toast-icon {
+  color: var(--danger);
+}
+
+/* --------------------------------------------------------------------------
+   Reduced Motion & Responsive
+   -------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media (max-width: 680px) {
+  body {
+    padding: 10px;
+    width: calc(100vw - 20px);
+  }
+
+  .header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .actions .btn {
+    flex: 1;
+  }
+
+  .filter-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .empty-state {
+    min-height: 300px;
+  }
 }

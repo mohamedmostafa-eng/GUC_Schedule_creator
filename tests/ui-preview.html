@@ -9,7 +9,8 @@
 
      States:
        ui-preview.html                 loaded grid (offline cache, selections applied)
-       ui-preview.html?state=stacked   German level only — 9 colliding cards in one cell (scroll case)
+       ui-preview.html?state=stacked   German level only — 9 colliding cards in one cell (+N more case)
+       ui-preview.html?state=nomatch   data present, filters match nothing (no-match state)
        ui-preview.html?state=empty     no cache + no GUC tab (error banner + empty state)
 -->
 <link rel="stylesheet" href="../popup/popup.css">
@@ -21,72 +22,101 @@
 </style>
 </head>
 <body>
-  <div class="preview-bar">UI preview — <a href="ui-preview.html">loaded</a> · <a href="ui-preview.html?state=stacked">stacked</a> · <a href="ui-preview.html?state=empty">empty/error</a></div>
+  <div class="preview-bar">UI preview — <a href="ui-preview.html">loaded</a> · <a href="ui-preview.html?state=stacked">stacked</a> · <a href="ui-preview.html?state=nomatch">no-match</a> · <a href="ui-preview.html?state=empty">empty/error</a></div>
 
   <div class="app-container">
-    <!-- Top Control Bar -->
+    <!-- Header: identity + status on the left, the two deliberate actions
+         (re-scan, export) on the right. -->
     <header class="header">
       <div class="branding">
-        <div class="logo-badge">
+        <div class="logo-badge" aria-hidden="true">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect></svg>
           <span class="logo-wordmark">GUC</span>
         </div>
         <div class="title-wrap">
           <h1>Timetable Matrix</h1>
           <div class="title-meta">
-            <span id="statusIndicator" class="status-badge status-loading" aria-live="polite">Scanning Tab...</span>
+            <span id="statusIndicator" class="status-badge status-loading" aria-live="polite">Scanning…</span>
             <span id="cohortNameChip" class="cohort-chip hidden"></span>
           </div>
         </div>
       </div>
 
       <div class="actions">
-        <button id="exportPdfBtn" class="btn btn-secondary" title="Download your personalized schedule as a PDF" aria-label="Export current schedule as PDF" disabled>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-          Export PDF
+        <button id="refreshBtn" class="btn btn-secondary" title="Re-read the schedule from the open GUC tab" aria-label="Force re-scan the schedule from the open GUC tab">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+          Force Re-scan
+        </button>
+        <button id="exportPdfBtn" class="btn btn-primary" title="Download your personalized schedule as a PDF" aria-label="Export current schedule as PDF" disabled>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          <span id="exportBtnLabel">Export PDF</span>
         </button>
       </div>
     </header>
 
     <!-- Error / Info Banner -->
-    <div id="errorBanner" class="error-banner hidden">
-      <span id="errorText"></span>
-      <button id="openScheduleBtn" class="btn-link error-link hidden">Open my GUC schedule →</button>
+    <div id="errorBanner" class="error-banner hidden" role="alert">
+      <svg class="error-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path></svg>
+      <div class="error-body">
+        <span id="errorText"></span>
+        <button id="openScheduleBtn" class="btn-link error-link hidden">Open my GUC schedule →</button>
+      </div>
     </div>
 
-    <!-- Dynamic Filter Form -->
-    <section class="filter-bar">
-      <div class="select-group">
-        <label for="tutSelect">Tutorial / Practical Group</label>
-        <select id="tutSelect" disabled>
-          <option value="">Select Group...</option>
-        </select>
-        <span id="tutTranslator" class="translator-subtitle hidden"></span>
+    <!-- Filter controls: one row of context (what's active, how to undo),
+         then the three dropdown filters. -->
+    <section class="filter-bar" aria-label="Schedule filters">
+      <div class="filter-head">
+        <span class="filter-title" id="filterTitle">Your classes</span>
+        <span id="filterHint" class="filter-hint" aria-live="polite"></span>
+        <button id="clearFiltersBtn" class="btn-link clear-filters hidden" title="Reset all three filters">Clear filters</button>
       </div>
+      <div class="filter-controls">
+        <div class="select-group">
+          <label for="tutSelect">Tutorial / Practical Group</label>
+          <select id="tutSelect" disabled>
+            <option value="">Pick your tutorial…</option>
+          </select>
+          <span id="tutTranslator" class="translator-subtitle hidden"></span>
+        </div>
 
-      <div class="select-group">
-        <label for="deSelect">German Level</label>
-        <select id="deSelect" disabled>
-          <option value="">Select German...</option>
-        </select>
-      </div>
+        <div class="select-group">
+          <label for="deSelect">German Level</label>
+          <select id="deSelect" disabled>
+            <option value="">Pick your German level…</option>
+          </select>
+        </div>
 
-      <div class="select-group">
-        <label for="smSelect">Elective / Humanities</label>
-        <select id="smSelect" disabled>
-          <option value="">Select Elective...</option>
-        </select>
+        <div class="select-group">
+          <label for="smSelect">Elective / Humanities</label>
+          <select id="smSelect" disabled>
+            <option value="">Pick your elective…</option>
+          </select>
+        </div>
       </div>
     </section>
 
     <!-- Main Schedule Display -->
     <main id="timetableContainer" class="timetable-wrapper">
       <div id="emptyState" class="empty-state">
-        <div class="empty-icon">
-          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+        <div class="empty-icon" aria-hidden="true">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
         </div>
-        <h3>No Schedule Loaded</h3>
-        <p>Navigate to your GUC semester schedule on <code>apps.guc.edu.eg</code> to parse and view your matrix.</p>
+        <h3>No schedule yet</h3>
+        <p>
+          Open your GUC semester schedule on <code>apps.guc.edu.eg</code>,
+          then press <strong>Force Re-scan</strong> above — the popup reads
+          the cohort table and builds your matrix automatically.
+        </p>
+      </div>
+
+      <div id="noMatchState" class="empty-state no-match-state hidden">
+        <div class="empty-icon" aria-hidden="true">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.5" y2="16.5"></line><line x1="8.5" y1="11" x2="13.5" y2="11"></line></svg>
+        </div>
+        <h3>No classes match your filters</h3>
+        <p>This cohort page has no classes for the tutorial, German level or elective you picked.</p>
+        <button id="noMatchClearBtn" class="btn btn-secondary no-match-clear">Clear filters</button>
       </div>
 
       <div class="grid-scroll">
@@ -95,21 +125,24 @@
         </div>
       </div>
 
-      <div id="scanOverlay" class="scan-overlay hidden">
-        <div class="spinner"></div>
-        <span>Scanning schedule...</span>
+      <div id="scanOverlay" class="scan-overlay hidden" role="status" aria-live="polite">
+        <div class="spinner" aria-hidden="true"></div>
+        <span class="scan-text">Reading your schedule…</span>
+        <span class="scan-sub">Parsing the cohort timetable in the current tab</span>
       </div>
     </main>
 
-    <!-- Footer Meta -->
+    <!-- Footer: where the data came from, and the privacy promise. -->
     <footer class="footer">
-      <span id="syncTimestamp">Not Synced</span>
-      <button id="refreshBtn" class="btn-link">Force Re-scan</button>
+      <span id="syncTimestamp" class="sync-status" aria-live="polite">Not synced yet</span>
+      <span class="footer-hint">Runs locally — nothing leaves this device</span>
     </footer>
   </div>
 
   <div id="toast" class="toast" role="status" aria-live="polite">
-    <svg class="toast-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+    <span id="toastIcon" class="toast-icon" aria-hidden="true">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+    </span>
     <span id="toastText"></span>
   </div>
 
@@ -121,15 +154,20 @@
   <script src="fixtures.js"></script>
   <script>
     // chrome.* stand-in. storage.local.get parses the fixture on demand and
-    // returns it as a version-3 cache, exactly the shape popup.js persists
-    // after a live scan. ?state=empty returns an empty store instead so the
-    // error/empty UI can be inspected.
+    // returns it as a version-4 cache, exactly the shape popup.js persists
+    // after a live scan. Prefs only ever reference groups the CURRENT
+    // parser still offers (v4 eligibility: German-row section tags are no
+    // longer tutorial options — "-011" comes from CSEN401 T011/P011).
+    // ?state=nomatch returns slots with every cohort lecture stripped, so
+    // the "no classes match your filters" state can be inspected. ?
+    // state=empty returns an empty store so the error/empty UI shows.
     (function () {
       const urlState = new URLSearchParams(location.search).get('state') || '';
       const empty = urlState === 'empty';
+      const nomatch = urlState === 'nomatch';
       const prefs = urlState === 'stacked'
         ? { tutorial: '', german: 'DE303', elective: '' }
-        : { tutorial: '3MET-019', german: 'DE303', elective: '' };
+        : { tutorial: '-011', german: 'DE303', elective: '' };
       window.chrome = {
         storage: {
           local: {
@@ -139,15 +177,21 @@
               root.innerHTML = GUC_TEST_FIXTURE_HTML;
               injectSvgNoiseIntoFixture(root);
               const parsed = parseGUCMatrixDOM();
+              let slots = parsed.data.slots;
+              if (nomatch) {
+                // Strip cohort lectures: with nothing selectable matching,
+                // the filtered view is empty → the no-match state shows.
+                slots = slots.filter(s => !s.isCohort);
+              }
               cb({
                 guc_schedule_cache: {
-                  slots: parsed.data.slots,
+                  slots: slots,
                   availableGroups: parsed.data.availableGroups,
                   cohortName: parsed.data.cohortName,
                   timestamp: '12:45 AM',
-                  parserVersion: 3
+                  parserVersion: 4
                 },
-                guc_user_prefs: prefs
+                guc_user_prefs: nomatch ? { tutorial: '', german: '', elective: '' } : prefs
               });
             },
             set: () => {}

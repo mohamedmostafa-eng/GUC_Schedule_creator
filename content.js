@@ -1,8 +1,17 @@
 /**
- * GUC Schedule Matrix - Hardened DOM Extraction Engine (v2.1.0)
+ * GUC Schedule Matrix - Hardened DOM Extraction Engine (v4.0.0)
  * Runs only on apps.guc.edu.eg (see manifest.json host_permissions).
  * Reads the schedule table already rendered in the page. Sends nothing
  * anywhere else — all data stays inside the browser (chrome.storage.local).
+ *
+ * v4.0.0 changes:
+ *   - German-only tutorial eligibility: T/P tags sitting on German-level
+ *     rows (the portal stacks one row per German section in the same
+ *     period cell) no longer register as available tutorial groups —
+ *     they live in the German class's numbering space, and offering them
+ *     let students pick a "group" that matched none of their real
+ *     tutorials. German rows now contribute only their LEVEL; the popup's
+ *     filter engine is unchanged.
  *
  * v2.1.0 changes:
  *   - extractCohortName(): reads the portal's schedule-type <select>
