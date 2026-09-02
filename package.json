@@ -1,6 +1,6 @@
 {
   "name": "guc-timetable-matrix",
-  "version": "4.1.0",
+  "version": "4.2.0",
   "private": true,
   "description": "Chrome MV3 extension: personalized GUC timetable matrix. Dev-dependencies here are for the offline test suite only — the extension itself needs no build tooling.",
   "scripts": {

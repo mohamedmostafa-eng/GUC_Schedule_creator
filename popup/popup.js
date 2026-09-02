@@ -43,6 +43,7 @@ const elements = {
   exportBtnLabel: document.getElementById('exportBtnLabel'),
   sizeToggleBtn: document.getElementById('sizeToggleBtn'),
   refreshBtn: document.getElementById('refreshBtn'),
+  refreshFooterBtn: document.getElementById('refreshFooterBtn'),
   gridMatrix: document.getElementById('gridMatrix'),
   emptyState: document.getElementById('emptyState'),
   noMatchState: document.getElementById('noMatchState'),
@@ -80,39 +81,34 @@ let toastHideTimer = null;
 let isExporting = false;
 
 // Max slot cards rendered visibly inside one timetable cell before the
-// rest collapse behind a "+N more" chip. Replaces the old always-on
-// internal cell scrolling, which made overflow ambiguous (a scrollable
-// cell looks identical to a full one until you happen to hover it).
-// Fit-week mode compresses rows to ~55px, so only one card shows;
-// comfortable mode keeps the roomier 130px rows with two.
+// rest collapse behind a "+N more" chip (compact/minimized mode only —
+// the classic maximized layout hides the chips and keeps the plain
+// internal cell slider).
 const MAX_VISIBLE_CARDS = 2;
-const MAX_VISIBLE_CARDS_FIT = 1;
 
-// UI size modes. Chrome caps extension popups at 800x600 CSS px, so
-// "fit week" fills that area with compact 1fr rows — the whole Sat–Thu
-// week visible at once, no scrollbars. "Comfortable" is the roomier
-// v4.0 layout (fixed 130px rows, internal cell sliders). The choice is
-// persisted in chrome.storage.local under guc_ui_prefs.
+// UI size modes. "max" is the classic spacious layout from the main
+// branch (900px, fixed 130px cells, footer re-scan link); "mini" is the
+// v4.0 compact redesign (header actions, +N more chips, filter bar
+// context row). The choice persists in chrome.storage.local under
+// guc_ui_prefs; max is the default.
 const UI_SIZE_STORAGE_KEY = 'guc_ui_prefs';
 
-function isFitMode() {
-  return document.body.classList.contains('size-fit');
-}
-
-function maxVisibleCards() {
-  return isFitMode() ? MAX_VISIBLE_CARDS_FIT : MAX_VISIBLE_CARDS;
+function isMaxMode() {
+  return document.body.classList.contains('size-max');
 }
 
 function applyUiSize(size, persist = false) {
-  const fit = size !== 'comfortable';
-  document.body.classList.toggle('size-fit', fit);
+  // Legacy values from earlier builds ('fit'/'comfortable') map onto the
+  // two current modes instead of breaking.
+  const mini = size === 'mini' || size === 'comfortable';
+  document.body.classList.toggle('size-max', !mini);
   const btn = elements.sizeToggleBtn;
   if (btn) {
-    btn.setAttribute('aria-pressed', String(fit));
-    btn.title = fit ? 'Switch to comfortable cards (scrollable)' : 'Fit the whole week on screen';
+    btn.setAttribute('aria-pressed', String(mini));
+    btn.title = mini ? 'Switch to the classic maximized layout' : 'Switch to the compact minimized layout';
   }
   if (persist) {
-    chrome.storage.local.set({ [UI_SIZE_STORAGE_KEY]: { size: fit ? 'fit' : 'comfortable' } });
+    chrome.storage.local.set({ [UI_SIZE_STORAGE_KEY]: { size: mini ? 'mini' : 'max' } });
   }
 }
 
@@ -188,6 +184,9 @@ function attachEventListeners() {
 
   elements.exportBtn.addEventListener('click', handleExportClick);
   elements.refreshBtn.addEventListener('click', () => initScheduleScan(true));
+  if (elements.refreshFooterBtn) {
+    elements.refreshFooterBtn.addEventListener('click', () => initScheduleScan(true));
+  }
   elements.openScheduleBtn.addEventListener('click', () => {
     chrome.tabs.create({ url: GUC_SCHEDULE_URL });
   });
@@ -200,8 +199,7 @@ function attachEventListeners() {
   }
   if (elements.sizeToggleBtn) {
     elements.sizeToggleBtn.addEventListener('click', () => {
-      applyUiSize(isFitMode() ? 'comfortable' : 'fit', true);
-      renderSchedule();
+      applyUiSize(isMaxMode() ? 'mini' : 'max', true);
     });
   }
 
@@ -748,7 +746,7 @@ function renderSchedule() {
           cell.appendChild(createSlotCard(slot));
         });
 
-        const hiddenCount = matchingSlots.length - maxVisibleCards();
+        const hiddenCount = matchingSlots.length - MAX_VISIBLE_CARDS;
         if (hiddenCount > 0) {
           cell.classList.add('has-more');
           const chip = document.createElement('button');

@@ -21,9 +21,10 @@
   .preview-bar a { color: #38bdf8; }
 </style>
 </head>
-<!-- size-fit is the default density (whole week, no scrollbars); popup.js
-     switches it to comfortable if the student last chose that. -->
-<body class="size-fit">
+<!-- size-max is the default density (the classic spacious main-branch
+     layout); popup.js switches it to the compact minimized layout if the
+     student last chose that. -->
+<body class="size-max">
   <div class="preview-bar">UI preview — <a href="ui-preview.html">loaded</a> · <a href="ui-preview.html?state=stacked">stacked</a> · <a href="ui-preview.html?state=nomatch">no-match</a> · <a href="ui-preview.html?state=empty">empty/error</a></div>
 
   <div class="app-container">
@@ -45,7 +46,7 @@
       </div>
 
       <div class="actions">
-        <button id="sizeToggleBtn" class="btn btn-icon" aria-pressed="true" title="Fit the whole week on screen" aria-label="Toggle between fit-the-whole-week and comfortable card sizes">
+        <button id="sizeToggleBtn" class="btn btn-icon" aria-pressed="false" title="Switch to the compact minimized layout" aria-label="Toggle between the classic maximized layout and the compact minimized layout">
           <svg class="icon-minimize" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="4 14 10 14 10 20"></polyline><polyline points="20 10 14 10 14 4"></polyline><line x1="14" y1="10" x2="21" y2="3"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
           <svg class="icon-expand" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
         </button>
@@ -138,9 +139,11 @@
       </div>
     </main>
 
-    <!-- Footer: where the data came from, and the privacy promise. -->
+    <!-- Footer: where the data came from, the privacy promise, and (in
+         the classic maximized layout) the Force Re-scan link. -->
     <footer class="footer">
       <span id="syncTimestamp" class="sync-status" aria-live="polite">Not synced yet</span>
+      <button id="refreshFooterBtn" class="btn-link">Force Re-scan</button>
       <span class="footer-hint">Runs locally — nothing leaves this device</span>
     </footer>
   </div>
